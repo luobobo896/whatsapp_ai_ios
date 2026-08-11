@@ -22,7 +22,7 @@
 
 ## 2. Xcode 真机运行
 
-1. 打开 `WhatsAppDeviceAgent/WhatsAppDeviceAgent.xcodeproj`。
+1. 打开 `WhatsAppDeviceAgent.xcodeproj`。
 2. 选中 `WhatsAppDeviceAgent` target → Signing & Capabilities → Team 选你的 Apple ID。
    - 免费账号下 bundle id `com.whatsappai.deviceagent` 无法直接签名：把 `Configs/Base.xcconfig` 的
      `APP_BUNDLE_ID`/`EXT_BUNDLE_ID`/`APP_GROUP_ID`/`KEYCHAIN_GROUP_ID` 成组改成你自己的前缀

@@ -6,8 +6,8 @@
 #     符号表改用 strings 从 archive 字符串表提取（带 _ 前缀）。
 set -euo pipefail
 
-FRAMEWORK="${1:-WhatsAppDeviceAgent/Vendor/EasyTier/EasyTierFFI.xcframework}"
-HEADER="WhatsAppDeviceAgent/Vendor/EasyTier/include/easytier_ffi.h"
+FRAMEWORK="${1:-Vendor/EasyTier/EasyTierFFI.xcframework}"
+HEADER="Vendor/EasyTier/include/easytier_ffi.h"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$FRAMEWORK" in

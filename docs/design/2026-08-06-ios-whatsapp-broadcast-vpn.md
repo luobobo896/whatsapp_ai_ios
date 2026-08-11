@@ -578,7 +578,7 @@ int32_t close_packet_flow_io(const char *inst_name);
 ```bash
 rtk bash scripts/build-easytier-ios.sh
 rtk bash scripts/verify-easytier-ffi-symbols.sh
-rtk xcodebuild -project WhatsAppDeviceAgent/WhatsAppDeviceAgent.xcodeproj \
+rtk xcodebuild -project WhatsAppDeviceAgent.xcodeproj \
   -scheme WhatsAppDeviceAgent -sdk iphonesimulator -configuration Debug build
 ```
 
@@ -1797,9 +1797,9 @@ rtk pnpm --dir frontend lint
 rtk pnpm --dir frontend build
 rtk cargo test --manifest-path third_party/easytier/easytier-contrib/easytier-ffi/Cargo.toml --locked
 rtk bash scripts/build-easytier-ios.sh
-rtk xcodebuild -project WhatsAppDeviceAgent/WhatsAppDeviceAgent.xcodeproj \
+rtk xcodebuild -project WhatsAppDeviceAgent.xcodeproj \
   -scheme WhatsAppDeviceAgent -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test
-rtk xcodebuild -project WhatsAppDeviceAgent/WhatsAppDeviceAgent.xcodeproj \
+rtk xcodebuild -project WhatsAppDeviceAgent.xcodeproj \
   -scheme PacketTunnel -destination 'generic/platform=iOS' build
 rtk git diff --check
 ```

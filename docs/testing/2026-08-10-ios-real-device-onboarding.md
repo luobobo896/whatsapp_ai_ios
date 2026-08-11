@@ -15,7 +15,7 @@
 
 ## 2. 一次性签名配置（Xcode 内操作，约 5 分钟）
 
-1. 打开工程：`WhatsAppDeviceAgent/WhatsAppDeviceAgent.xcodeproj`。
+1. 打开工程：`WhatsAppDeviceAgent.xcodeproj`。
 2. 顶部 Scheme 选 `WhatsAppDeviceAgent`。
 3. 依次选中 target `WhatsAppDeviceAgent` 和 `PacketTunnel`，进入 **Signing & Capabilities**：
    - 勾选你的 Apple Team（Automatic signing）。

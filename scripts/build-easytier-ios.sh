@@ -5,8 +5,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EASYTIER_DIR="$REPO_ROOT/third_party/easytier"
-SOURCE_COMMIT_FILE="$REPO_ROOT/WhatsAppDeviceAgent/Vendor/EasyTier/SOURCE_COMMIT"
-OUT_DIR="$REPO_ROOT/WhatsAppDeviceAgent/Vendor/EasyTier/EasyTierFFI.xcframework"
+SOURCE_COMMIT_FILE="$REPO_ROOT/Vendor/EasyTier/SOURCE_COMMIT"
+OUT_DIR="$REPO_ROOT/Vendor/EasyTier/EasyTierFFI.xcframework"
 RUST_VERSION="1.95"
 
 if [ ! -d "$EASYTIER_DIR" ]; then
@@ -71,8 +71,8 @@ lipo -create "$SIM_AARCH64" "$SIM_X86_64" -output "$SIM_UNIVERSAL"
 # 5. 生成唯一 XCFramework（设计 6.3）
 rm -rf "$OUT_DIR"
 xcodebuild -create-xcframework \
-  -library "$DEVICE_LIB" -headers "$REPO_ROOT/WhatsAppDeviceAgent/Vendor/EasyTier/include" \
-  -library "$SIM_UNIVERSAL" -headers "$REPO_ROOT/WhatsAppDeviceAgent/Vendor/EasyTier/include" \
+  -library "$DEVICE_LIB" -headers "$REPO_ROOT/Vendor/EasyTier/include" \
+  -library "$SIM_UNIVERSAL" -headers "$REPO_ROOT/Vendor/EasyTier/include" \
   -output "$OUT_DIR"
 
 popd >/dev/null
