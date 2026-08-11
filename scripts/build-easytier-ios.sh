@@ -54,6 +54,12 @@ esac
 pushd "$EASYTIER_DIR" >/dev/null
 
 # 3. 构建三个架构的静态库（设计 6.3）
+# iOS 最低版本：与 Configs/Base.xcconfig 的 IPHONEOS_DEPLOYMENT_TARGET(16.4) 保持一致。
+# 不设置时 minos 会跟随构建环境（例如 26.2），链接进 16.4 的 target 会报警
+# "built for newer iOS version than being linked"。
+MIN_IOS_VERSION="${MIN_IOS_VERSION:-16.4}"
+export IPHONEOS_DEPLOYMENT_TARGET="$MIN_IOS_VERSION"
+
 for target in aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios; do
   rustup target add "$target"
   cargo build --release --locked --target "$target" -p easytier-ffi
