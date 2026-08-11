@@ -6,6 +6,9 @@ struct DeviceStatusView: View {
     @State private var showReenrollConfirm = false
     @State private var showSettings = false
 
+    
+    
+    //
     var body: some View {
         NavigationStack {
             ScrollView {
