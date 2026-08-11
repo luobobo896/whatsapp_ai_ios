@@ -1,0 +1,5 @@
+# EasyTier 使用 GNU LGPL-3.0 许可。
+# 完整许可文本以 third_party/easytier/LICENSE 为准（克隆 EasyTier v2.6.4 后自动包含），
+# 也可参考官方文本：https://www.gnu.org/licenses/lgpl-3.0.txt
+# 交付物完整性检查见设计文档第 20 条验收标准第 11 项。
+# TODO(M0-A): 克隆 third_party/easytier 后核验 LICENSE 与上链一致，必要时替换本占位文件。

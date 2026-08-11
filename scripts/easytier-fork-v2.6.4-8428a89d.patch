@@ -1,0 +1,244 @@
+diff --git a/easytier-contrib/easytier-ffi/Cargo.toml b/easytier-contrib/easytier-ffi/Cargo.toml
+index 52e6624..68458b2 100644
+--- a/easytier-contrib/easytier-ffi/Cargo.toml
++++ b/easytier-contrib/easytier-ffi/Cargo.toml
+@@ -4,10 +4,10 @@ version = "0.1.0"
+ edition.workspace = true
+ 
+ [lib]
+-crate-type = ["cdylib"]
++crate-type = ["staticlib", "cdylib"]
+ 
+ [dependencies]
+-easytier = { path = "../../easytier" }
++easytier = { path = "../../easytier", default-features = false, features = ["wireguard", "websocket", "smoltcp", "tun"] }
+ 
+ once_cell = "1.18.0"
+ dashmap = "6.0"
+diff --git a/easytier-contrib/easytier-ffi/src/lib.rs b/easytier-contrib/easytier-ffi/src/lib.rs
+index e9b65be..b84379c 100644
+--- a/easytier-contrib/easytier-ffi/src/lib.rs
++++ b/easytier-contrib/easytier-ffi/src/lib.rs
+@@ -35,13 +35,17 @@ pub unsafe extern "C" fn set_tun_fd(
+     inst_name: *const std::ffi::c_char,
+     fd: std::ffi::c_int,
+ ) -> std::ffi::c_int {
++    if inst_name.is_null() {
++        set_error_msg("inst_name is null");
++        return -1;
++    }
+     let inst_name = unsafe {
+-        assert!(!inst_name.is_null());
+         std::ffi::CStr::from_ptr(inst_name)
+             .to_string_lossy()
+             .into_owned()
+     };
+     if !INSTANCE_NAME_ID_MAP.contains_key(&inst_name) {
++        set_error_msg("instance not found");
+         return -1;
+     }
+ 
+@@ -88,8 +92,11 @@ pub extern "C" fn free_string(s: *const std::ffi::c_char) {
+ /// Parse the config
+ #[unsafe(no_mangle)]
+ pub unsafe extern "C" fn parse_config(cfg_str: *const std::ffi::c_char) -> std::ffi::c_int {
++    if cfg_str.is_null() {
++        set_error_msg("cfg_str is null");
++        return -1;
++    }
+     let cfg_str = unsafe {
+-        assert!(!cfg_str.is_null());
+         std::ffi::CStr::from_ptr(cfg_str)
+             .to_string_lossy()
+             .into_owned()
+@@ -107,8 +114,11 @@ pub unsafe extern "C" fn parse_config(cfg_str: *const std::ffi::c_char) -> std::
+ /// Run the network instance
+ #[unsafe(no_mangle)]
+ pub unsafe extern "C" fn run_network_instance(cfg_str: *const std::ffi::c_char) -> std::ffi::c_int {
++    if cfg_str.is_null() {
++        set_error_msg("cfg_str is null");
++        return -1;
++    }
+     let cfg_str = unsafe {
+-        assert!(!cfg_str.is_null());
+         std::ffi::CStr::from_ptr(cfg_str)
+             .to_string_lossy()
+             .into_owned()
+@@ -158,18 +168,24 @@ pub unsafe extern "C" fn retain_network_instance(
+         return 0;
+     }
+ 
+-    let inst_names = unsafe {
+-        assert!(!inst_names.is_null());
+-        std::slice::from_raw_parts(inst_names, length)
+-            .iter()
+-            .map(|&name| {
+-                assert!(!name.is_null());
+-                std::ffi::CStr::from_ptr(name)
+-                    .to_string_lossy()
+-                    .into_owned()
+-            })
+-            .collect::<Vec<_>>()
+-    };
++    if inst_names.is_null() {
++        set_error_msg("inst_names is null");
++        return -1;
++    }
++    let mut inst_names_vec = Vec::with_capacity(length);
++    for index in 0..length {
++        let name = unsafe { *inst_names.add(index) };
++        if name.is_null() {
++            set_error_msg("inst_names contains null");
++            return -1;
++        }
++        inst_names_vec.push(unsafe {
++            std::ffi::CStr::from_ptr(name)
++                .to_string_lossy()
++                .into_owned()
++        });
++    }
++    let inst_names = inst_names_vec;
+ 
+     let inst_ids: Vec<uuid::Uuid> = inst_names
+         .iter()
+@@ -197,10 +213,11 @@ pub unsafe extern "C" fn collect_network_infos(
+         return 0;
+     }
+ 
+-    let infos = unsafe {
+-        assert!(!infos.is_null());
+-        std::slice::from_raw_parts_mut(infos, max_length)
+-    };
++    if infos.is_null() {
++        set_error_msg("infos is null");
++        return -1;
++    }
++    let infos = unsafe { std::slice::from_raw_parts_mut(infos, max_length) };
+ 
+     let collected_infos = match INSTANCE_MANAGER.collect_network_infos_sync() {
+         Ok(infos) => infos,
+@@ -241,6 +258,55 @@ pub unsafe extern "C" fn collect_network_infos(
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn test_null_pointer_returns_error_without_panicking() {
++        unsafe {
++            assert_eq!(set_tun_fd(std::ptr::null(), -1), -1);
++            assert_eq!(parse_config(std::ptr::null()), -1);
++            assert_eq!(run_network_instance(std::ptr::null()), -1);
++            assert_eq!(retain_network_instance(std::ptr::null(), 1), -1);
++            assert_eq!(collect_network_infos(std::ptr::null_mut(), 1), -1);
++        }
++        // 错误信息应可读取且可释放
++        let mut out: *const std::ffi::c_char = std::ptr::null();
++        unsafe {
++            get_error_msg(&mut out);
++            assert!(!out.is_null());
++            free_string(out);
++        }
++    }
++
++    #[test]
++    fn test_invalid_fd_returns_error() {
++        let cfg_str = r#"
++            inst_name = "test"
++            network = "test_network"
++        "#;
++        let cstr = std::ffi::CString::new(cfg_str).unwrap();
++        let mut out: *const std::ffi::c_char = std::ptr::null();
++        unsafe {
++            assert_eq!(parse_config(cstr.as_ptr()), 0);
++            assert_eq!(run_network_instance(cstr.as_ptr()), 0);
++            // -1 是无效 fd
++            assert_eq!(set_tun_fd(cstr.as_ptr(), -1), -1);
++            get_error_msg(&mut out);
++            assert!(!out.is_null());
++            free_string(out);
++            // 重复启动同一 instance 应失败
++            assert_eq!(run_network_instance(cstr.as_ptr()), -1);
++            get_error_msg(&mut out);
++            assert!(!out.is_null());
++            free_string(out);
++            // 清理
++            assert_eq!(retain_network_instance(std::ptr::null(), 0), 0);
++        }
++    }
++
++    #[test]
++    fn test_free_string_accepts_null_and_repeated() {
++        free_string(std::ptr::null());
++    }
++
+     #[test]
+     fn test_parse_config() {
+         let cfg_str = r#"
+diff --git a/easytier/src/core.rs b/easytier/src/core.rs
+index 8587513..1013fce 100644
+--- a/easytier/src/core.rs
++++ b/easytier/src/core.rs
+@@ -1443,14 +1443,10 @@ async fn run_main(cli: Cli) -> anyhow::Result<()> {
+ 
+         log::info!(
+             "\
+-            Starting easytier from config file {:?}({:?}) with config:\n\
+-            ############### TOML ###############\n\
+-            {}\n\
+-            -----------------------------------\n\
+-            ",
++            Starting easytier from config file {:?}({:?}), instance={}, config dump redacted",
+             config_file,
+             control.permission,
+-            cfg.dump()
++            cfg.get_inst_name()
+         );
+         manager.run_network_instance(cfg, true, control)?;
+     }
+@@ -1461,13 +1457,8 @@ async fn run_main(cli: Cli) -> anyhow::Result<()> {
+             .merge_into(&cfg)
+             .with_context(|| "failed to create config from cli".to_string())?;
+         log::info!(
+-            "\
+-            Starting easytier from cli with config:\n\
+-            ############### TOML ###############\n\
+-            {}\n\
+-            -----------------------------------\n\
+-            ",
+-            cfg.dump()
++            "Starting easytier from cli, instance={}, config dump redacted",
++            cfg.get_inst_name()
+         );
+         manager.run_network_instance(cfg, true, ConfigFileControl::STATIC_CONFIG)?;
+     }
+diff --git a/easytier/src/instance/instance.rs b/easytier/src/instance/instance.rs
+index 0f00908..a9ee98b 100644
+--- a/easytier/src/instance/instance.rs
++++ b/easytier/src/instance/instance.rs
+@@ -652,8 +652,8 @@ impl Instance {
+         let global_ctx = Arc::new(GlobalCtx::new(config));
+ 
+         tracing::info!(
+-            "[INIT] instance creating. config: {}",
+-            global_ctx.config.dump()
++            "[INIT] instance creating. instance={}, config dump redacted",
++            global_ctx.config.get_inst_name()
+         );
+ 
+         let (peer_packet_sender, peer_packet_receiver) = create_packet_recv_chan();
+@@ -1583,12 +1583,16 @@ impl Instance {
+             .await
+             .with_context(|| "add ip failed")?;
+ 
++        #[cfg(feature = "magic-dns")]
+         let magic_dns_runner = if let Some(ipv4) = global_ctx.get_ipv4() {
+             Self::create_magic_dns_runner(peer_manager.clone(), None, ipv4)
+         } else {
+             None
+         };
++        #[cfg(feature = "magic-dns")]
+         Self::use_new_nic_ctx(nic_ctx.clone(), new_nic_ctx, magic_dns_runner).await;
++        #[cfg(not(feature = "magic-dns"))]
++        Self::use_new_nic_ctx(nic_ctx.clone(), new_nic_ctx).await;
+         Ok(())
+     }
+ 

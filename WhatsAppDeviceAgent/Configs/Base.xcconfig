@@ -1,0 +1,14 @@
+// 统一配置（设计 6.1）
+IPHONEOS_DEPLOYMENT_TARGET = 16.4
+SWIFT_VERSION = 5.0
+MARKETING_VERSION = 1.0
+CURRENT_PROJECT_VERSION = 1
+
+// 统一 bundle 前缀与容器（设计 6.1，Apple Team 可在签名配置中整体替换前缀）
+APP_BUNDLE_ID = com.whatsappai.deviceagent
+EXT_BUNDLE_ID = com.whatsappai.deviceagent.packet-tunnel
+APP_GROUP_ID = group.com.whatsappai.deviceagent
+KEYCHAIN_GROUP_ID = $(AppIdentifierPrefix)com.whatsappai.deviceagent.shared
+
+// I/O 模式（设计 6.1）：fd=Development/Ad Hoc，packet_flow=App Store/TestFlight Release
+EASYTIER_IO_MODE = fd

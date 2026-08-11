@@ -1,0 +1,20 @@
+# Xcode / iOS 构建产物
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# EasyTier FFI 构建产物（由 scripts/build-easytier-ios.sh 生成）
+WhatsAppDeviceAgent/Vendor/EasyTier/EasyTierFFI.xcframework/
+WhatsAppDeviceAgent/Vendor/EasyTier/EasyTierFFI.xcframework.sha256
+
+# EasyTier 源码（本地克隆，勿入库）
+third_party/easytier/
+
+# macOS
+.DS_Store
+
+# 其他
+*.exe
+.zcode/
