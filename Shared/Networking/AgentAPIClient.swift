@@ -58,7 +58,7 @@ struct AgentAPIClient {
     }
 
     func enroll(request: EnrollRequest) async throws -> EnrollResponse {
-        let url = baseURL.appendingPathComponent("/api/ios-agent/v1/enroll")
+        let url = baseURL.appendingPathComponent("api/ios-agent/v1/enroll")
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -73,7 +73,7 @@ struct AgentAPIClient {
 
     /// GET /config 只返回非秘密字段；App 补充自己的 serverBaseURL（设计 7.2）。
     func fetchConfig(token: String) async throws -> AgentConfig {
-        let url = baseURL.appendingPathComponent("/api/ios-agent/v1/config")
+        let url = baseURL.appendingPathComponent("api/ios-agent/v1/config")
         var urlRequest = URLRequest(url: url)
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let data = try await perform(urlRequest)
@@ -97,7 +97,7 @@ struct AgentAPIClient {
     }
 
     func reportStatus(token: String, status: AgentStatus) async throws {
-        let url = baseURL.appendingPathComponent("/api/ios-agent/v1/status")
+        let url = baseURL.appendingPathComponent("api/ios-agent/v1/status")
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -107,7 +107,7 @@ struct AgentAPIClient {
     }
 
     func rotateToken(token: String) async throws -> String {
-        let url = baseURL.appendingPathComponent("/api/ios-agent/v1/token/rotate")
+        let url = baseURL.appendingPathComponent("api/ios-agent/v1/token/rotate")
         var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

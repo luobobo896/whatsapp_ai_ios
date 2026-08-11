@@ -51,7 +51,7 @@ struct EnrollmentService {
         try SharedKeychain.store(response.deviceToken, for: .deviceToken)
         try SharedKeychain.store(response.config.networkSecret, for: .networkSecret)
 
-        var config = AgentConfig(
+        let config = AgentConfig(
             schemaVersion: response.config.schemaVersion,
             configVersion: response.config.configVersion,
             deviceId: response.deviceId,

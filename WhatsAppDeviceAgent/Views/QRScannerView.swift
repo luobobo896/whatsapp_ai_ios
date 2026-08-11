@@ -38,8 +38,33 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     // MARK: - 摄像头实时扫码
 
     private func setupCamera() {
+        // 相机权限分支：未决定先请求，拒绝时给出可操作的提示（右上角 ✕ 可退出）。
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            startCaptureSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.startCaptureSession()
+                    } else {
+                        self?.showPermissionDenied()
+                    }
+                }
+            }
+        case .denied, .restricted:
+            showPermissionDenied()
+        @unknown default:
+            showPermissionDenied()
+        }
+    }
+
+    private func startCaptureSession() {
         guard let device = AVCaptureDevice.default(for: .video),
-              let input = try? AVCaptureDeviceInput(device: device) else { return }
+              let input = try? AVCaptureDeviceInput(device: device) else {
+            showPermissionDenied()
+            return
+        }
         let session = AVCaptureSession()
         guard session.canAddInput(input) else { return }
         session.addInput(input)
@@ -56,6 +81,23 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
         view.layer.addSublayer(preview)
         self.session = session
         session.startRunning()
+    }
+
+    /// 相机不可用/被拒绝时展示提示文案（右上角关闭按钮保留，保证可退出）。
+    private func showPermissionDenied() {
+        let label = UILabel()
+        label.text = "相机权限被拒绝，请在「设置」中允许本 App 访问相机后重试。"
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 16)
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+            label.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
     }
 
     func metadataOutput(_ output: AVCaptureMetadataOutput,

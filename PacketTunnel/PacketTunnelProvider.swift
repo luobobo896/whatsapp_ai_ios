@@ -269,6 +269,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         #endif
     }
 
+    #if EASYTIER_IO_FD
     override func sleep(completionHandler: @escaping () -> Void) {
         // 只停止统计 timer，不销毁 instance（设计 6.5）。
         queue.async { [weak self] in
@@ -344,4 +345,5 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         stopStatusTimer()
         state = .stopped
     }
+    #endif
 }

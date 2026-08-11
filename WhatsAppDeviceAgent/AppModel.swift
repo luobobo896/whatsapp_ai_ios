@@ -33,6 +33,9 @@ final class AppModel: ObservableObject {
     private let vpnManager: VPNManager
     private let logger = RedactingLogger(category: "app-model")
     private var heartbeatTask: Task<Void, Never>?
+    /// 隧道状态轮询：启动 VPN 后每 2 秒读取 Extension 写入 App Group 的状态快照，
+    /// 让界面状态（vpnState）与真实隧道状态同步（设计 6.8）。
+    private var statusPollTask: Task<Void, Never>?
 
     init(enrollmentService: EnrollmentService? = nil,
          vpnManager: VPNManager? = nil) {
@@ -122,7 +125,7 @@ final class AppModel: ObservableObject {
             let client = AgentAPIClient(baseURL: url)
             let snapshot = AgentStatus(
                 appStatus: status,
-                vpnPhase: "connected",
+                vpnPhase: reportedVPNPhase,
                 virtualIP: config.iphoneIPv4,
                 peerCount: 1
             )
@@ -143,6 +146,7 @@ final class AppModel: ObservableObject {
     /// 重新注册/退出：清除本地配置与 Keychain，返回注册页（设备被平台移除或用户主动重注册）。
     func resetForReenrollment() {
         stopHeartbeat()
+        stopStatusPolling()
         try? SharedKeychain.delete(.deviceToken)
         try? SharedKeychain.delete(.networkSecret)
         AppGroupStore.clear()
@@ -170,10 +174,61 @@ final class AppModel: ObservableObject {
         vpnState = .connecting
         lastError = nil
         vpnManager.startTunnel(configVersion: config.configVersion)
+        startStatusPolling()
     }
 
     func stopVPN() {
         vpnState = .idle
+        stopStatusPolling()
         vpnManager.stopTunnel()
+    }
+
+    // MARK: - 隧道状态同步（设计 6.8）
+
+    /// 启动 VPN 后轮询 Extension 状态快照，2 秒一次；界面状态随真实隧道状态更新。
+    private func startStatusPolling() {
+        guard statusPollTask == nil else { return }
+        statusPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled, let self else { return }
+                self.syncVPNStateFromTunnel()
+            }
+        }
+    }
+
+    private func stopStatusPolling() {
+        statusPollTask?.cancel()
+        statusPollTask = nil
+    }
+
+    /// 读取 Extension 写入 App Group 的状态并映射到 UI 状态。
+    /// 无错误码的 stopped 视为启动前初始状态，不把 connecting 打回 idle，避免闪烁。
+    private func syncVPNStateFromTunnel() {
+        guard let snapshot = try? AppGroupStore.readJSON(
+            TunnelStatusSnapshot.self,
+            from: AppGroupStore.statusFileName) else { return }
+        switch snapshot.phase {
+        case .connected:
+            vpnState = .connected
+            if lastError != nil { lastError = nil }
+        case .connecting:
+            vpnState = .connecting
+        case .stopped, .recoveryRequired, .ffiNotConfigured:
+            if let code = snapshot.lastErrorCode {
+                vpnState = .failed
+                lastError = code
+            }
+        }
+    }
+
+    /// 上报给平台的 vpnPhase 语义（设计 7.2 与 TunnelPhase 对齐）。
+    private var reportedVPNPhase: String {
+        switch vpnState {
+        case .idle: return TunnelPhase.stopped.rawValue
+        case .connecting: return TunnelPhase.connecting.rawValue
+        case .connected: return TunnelPhase.connected.rawValue
+        case .failed: return TunnelPhase.recoveryRequired.rawValue
+        }
     }
 }

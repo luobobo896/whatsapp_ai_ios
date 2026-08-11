@@ -18,3 +18,5 @@ third_party/easytier/
 # 其他
 *.exe
 .zcode/
+# MCP code-review-graph 工具数据（本地 graph.db，勿入库）
+.code-review-graph/

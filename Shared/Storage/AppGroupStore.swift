@@ -33,7 +33,9 @@ enum AppGroupStore {
     /// 清除本地配置（重新注册/退出时调用）。
     static func clear() {
         guard let container = containerURL() else { return }
+        // 同时清除配置与隧道状态快照，避免重注册后残留旧状态（设计 6.4/6.8）。
         try? FileManager.default.removeItem(at: container.appendingPathComponent(configFileName))
+        try? FileManager.default.removeItem(at: container.appendingPathComponent(statusFileName))
     }
 
     static func loadConfig() throws -> AgentConfig? {

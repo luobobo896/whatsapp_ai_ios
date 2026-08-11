@@ -56,7 +56,7 @@ enum EasyTierBridge {
     /// retain_network_instance：保留（或清空）网络实例。
     static func retainNetworkInstances(_ names: [String]) -> Result<Int32, EasyTierFFIError> {
         #if EASYTIER_FFI_LINKED
-        var cNames: [UnsafePointer<CChar>?] = names.map { strdup($0).map { UnsafePointer($0) } }
+        let cNames: [UnsafePointer<CChar>?] = names.map { strdup($0).map { UnsafePointer($0) } }
         defer { cNames.forEach { free(UnsafeMutablePointer(mutating: $0)) } }
         let result = retain_network_instance(cNames, names.count)
         return result == EasyTierIOError.ok ? .success(result) : .failure(EasyTierFFIError.message(currentErrorMessage()))
