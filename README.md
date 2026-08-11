@@ -11,17 +11,92 @@ iPhone App + Network Extension（PacketTunnel）通过 easytier 组网接入平�
 ## 仓库结构（设计 6.1）
 
 ```text
-WhatsAppDeviceAgent.xcodeproj    Xcode 工程（App + PacketTunnel Extension + 2 个测试 target）
+WhatsAppDeviceAgent.xcodeproj    Xcode 工程（App + PacketTunnel Extension + 3 个测试 target）
 Configs/                        Base/Debug/Release.xcconfig（统一 bundle 前缀、iOS 16.4、EASYTIER_IO_MODE）
-Vendor/EasyTier/                include/easytier_ffi.h（人工维护 ABI）、SOURCE_COMMIT、LICENSE 占位、EasyTierFFI.xcframework（构建产物，gitignore）
-Shared/                         App 与 Extension 共用：配置/状态模型、Keychain、App Group、API/WSS、脱敏日志
-WhatsAppDeviceAgent/             主 App：注册页、状态页、VPN profile、enrollment
-PacketTunnel/                   Network Extension：生命周期、EasyTier Bridge、TOML builder、fd/packetFlow 桥
+Shared/                         App 与 Extension 共用：配置/状态模型、Keychain、App Group、API 客户端、脱敏日志
+WhatsAppDeviceAgent/             主 App：注册、状态页、VPN profile、enrollment
+PacketTunnel/                   Network Extension：隧道生命周期、EasyTier Bridge、TOML builder、fd/packetFlow 桥
 WhatsAppDeviceAgentTests/        主 App 单元测试
 PacketTunnelTests/               Extension 单元测试
+WhatsAppDeviceAgentUITests/      UI 测试（真实注册 HK 平台）
+Vendor/EasyTier/                include/easytier_ffi.h（人工维护 ABI）、SOURCE_COMMIT、LICENSE 占位、EasyTierFFI.xcframework（构建产物，gitignore）
 docs/                           设计 / 测试 / 部署文档
 scripts/                        EasyTier iOS XCFramework 构建脚本与 fork patch
 ```
+
+### 各模块职责
+
+#### `Configs/` — 构建设置（xcconfig）
+
+- `Base.xcconfig`：统一部署目标 iOS 16.4、Swift 5.0、bundle 前缀
+  （`APP_BUNDLE_ID` / `EXT_BUNDLE_ID` / `APP_GROUP_ID` / `KEYCHAIN_GROUP_ID`）、I/O 模式开关 `EASYTIER_IO_MODE`。
+- `Debug.xcconfig` / `Release.xcconfig`：切换 I/O 轨并注入编译条件
+  （Debug = `EASYTIER_IO_FD`，Release = `EASYTIER_IO_PACKET_FLOW`；均含 `EASYTIER_FFI_LINKED`）。
+
+#### `Shared/` — App 与 Extension 共用层（两个 target 都编译这份源码）
+
+| 文件 | 职责 |
+|------|------|
+| `Models/AgentConfig.swift` | 设备配置（非秘密字段）模型 + 校验（schemaVersion/deviceId/CIDR/IPv4/relayPort/serverBaseURL）；扩展启动前必须通过校验 |
+| `Models/AgentStatus.swift` | App 上报状态快照 + `AgentAppStatus` 语义枚举（online / connected / recoveryRequired / …） |
+| `Models/TunnelStatus.swift` | Extension 状态快照（phase/virtualIP/peerCount/lastErrorCode/updatedAt）+ `TunnelPhase`；App 据此展示/上报真实隧道状态 |
+| `Logging/RedactingLogger.swift` | 统一日志，输出前对 token/secret/注册码等敏感字段脱敏 |
+| `Networking/AgentAPIClient.swift` | 平台 `/api/ios-agent/v1` 客户端：enroll / config / status / rotateToken；仅 HTTPS（开发允许 http://127.0.0.1） |
+| `Security/SharedKeychain.swift` | 共享 Keychain，只存 `deviceToken` / `networkSecret` / `installationID`（AfterFirstUnlockThisDeviceOnly） |
+| `Storage/AppGroupStore.swift` | App Group 非秘密配置/状态快照的原子读写（临时文件 + fsync + rename）；`clear()` 同时清配置与状态 |
+
+#### `WhatsAppDeviceAgent/` — 主 App
+
+| 文件 | 职责 |
+|------|------|
+| `WhatsAppDeviceAgentApp.swift` | App 入口 + `RootView`；scenePhase 控制前台心跳/后台停止；支持 `-reset-enrollment` 测试参数 |
+| `AppModel.swift` | UI 状态协调（@MainActor）：注册流程、20s 心跳上报、VPN 启停、启动 VPN 后每 2s 轮询隧道状态同步界面 |
+| `Enrollment/EnrollmentService.swift` | 注册流程：installationID 生成/恢复（Keychain 持久化）、enroll 调用、token/secret 入 Keychain、config 原子写入 App Group |
+| `VPN/VPNManager.swift` | 保存唯一 VPN profile（`NETunnelProviderManager`）并启停；`providerConfiguration` 只放 schemaVersion/configVersion，不放秘密 |
+| `Views/EnrollmentView.swift` | 注册引导页：扫码（大按钮）或手动输入服务器地址 + 注册码 |
+| `Views/QRScannerView.swift` | 相机扫码（`AVCaptureSession` + 元数据输出），含相机权限请求与拒绝提示 |
+| `Views/DeviceStatusView.swift` | 状态页：中央电源按钮启停 VPN + 连接状态卡片 + 重新注册菜单 |
+| `Views/SettingsView.swift` | 设置页：设备信息、服务器/注册码修改并重新注册、关于 |
+| `Info.plist` / `WhatsAppDeviceAgent.entitlements` | App 配置、相机权限文案、App Group / Keychain group |
+
+#### `PacketTunnel/` — Network Extension（VPN 隧道）
+
+| 文件 | 职责 |
+|------|------|
+| `PacketTunnelProvider.swift` | 隧道生命周期（fd 轨）：读配置/secret → 校验 → NE 设置（只路由 10.168.0.0/16）→ dup TUN fd → parse/run/set_tun_fd → 等 running+peer（30s）→ connected；stop/sleep/wake；每 15s 采集状态写 App Group |
+| `EasyTierBridge.swift` | EasyTier C ABI 唯一入口（parse_config / run_network_instance / set_tun_fd / retain / collect_network_infos / get_error_msg / free_string），由 `#if EASYTIER_FFI_LINKED` 保护 |
+| `EasyTierConfigBuilder.swift` | 结构化字段 → EasyTier TOML（instance/ipv4/网络身份/udp+tcp peer/flags/mtu），带转义与校验 |
+| `TunnelFileDescriptor.swift` | 通过 packetFlow KVC 提取 TUN fd 并 dup（仅 fd 轨编译） |
+| `PacketFlowBridge.swift` | App Store 轨（packetFlow）预留：未接入 FFI，调用即 `preconditionFailure`（M0-E） |
+| `TunnelStatusReporter.swift` | 把隧道状态快照写入 App Group，供主 App 展示/上报（类型定义在 Shared） |
+| `Info.plist` / `PacketTunnel.entitlements` | Extension 配置、Network Extension / App Group / Keychain 权限 |
+
+#### 测试 target
+
+| 目录 | 覆盖 |
+|------|------|
+| `WhatsAppDeviceAgentTests/` | AgentConfig 校验、EnrollmentService URL 校验、VPNManager profile 构造（`@testable import` 主 App） |
+| `PacketTunnelTests/` | EasyTier TOML 构建与转义、TunnelStatus 快照 round-trip、FFI 链接断言（直接编译 Shared + PacketTunnel 源码） |
+| `WhatsAppDeviceAgentUITests/` | 真实注册 HK 流程（注册码由运行脚本注入，占位符 `__ENROLL_CODE__` 时自动 skip） |
+
+#### `Vendor/EasyTier/` — EasyTier FFI
+
+- `include/easytier_ffi.h`：人工维护的 C ABI 声明（作为 PacketTunnel target 的 bridging header）。
+- `SOURCE_COMMIT`：固定 fork 提交（v2.6.4-8428a89d），`scripts/build-easytier-ios.sh` 会核验克隆 HEAD 一致。
+- `LICENSE-LGPL-3.0`：LGPL 许可占位。
+- `EasyTierFFI.xcframework`：构建产物（gitignore，不入库），由 `scripts/build-easytier-ios.sh` 生成。
+
+#### `scripts/` — 构建与核验
+
+- `build-easytier-ios.sh`：核验固定 commit 与允许的 fork 文件 → Rust 1.95 构建 3 架构 → lipo 合并模拟器库 → `xcodebuild -create-xcframework` → 符号核验 → 输出 SHA-256。
+- `verify-easytier-ffi-symbols.sh`：核验 xcframework 导出符号与头文件一致（基础 ABI 7 个必选 + packetFlow 3 个可选）。
+- `easytier-fork-v2.6.4-8428a89d.patch`：EasyTier fork 最小修改（easytier-ffi / core / instance）。
+
+#### `docs/` — 设计 / 测试 / 部署文档
+
+- `design/`：方案可行性、主设计（6 章：架构/FFI/配置/安全/生命周期/接口）、方案评审。
+- `testing/`：M0 里程碑测试记录、真机接入 HK 测试平台记录。
+- `deployment/`：真机注册 SOP。
 
 ## 打开与运行
 
