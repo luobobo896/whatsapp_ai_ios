@@ -123,11 +123,17 @@ final class AppModel: ObservableObject {
                   let token = try? SharedKeychain.read(.deviceToken),
                   let url = URL(string: config.serverBaseURL) else { return }
             let client = AgentAPIClient(baseURL: url)
+            // 设计 7.2：status 需带上 Extension 写入的错误码与时间，平台据此展示/告警。
+            let tunnelSnapshot = try? AppGroupStore.readJSON(
+                TunnelStatusSnapshot.self,
+                from: AppGroupStore.statusFileName)
             let snapshot = AgentStatus(
                 appStatus: status,
                 vpnPhase: reportedVPNPhase,
                 virtualIP: config.iphoneIPv4,
-                peerCount: 1
+                peerCount: 1,
+                lastErrorCode: tunnelSnapshot?.lastErrorCode,
+                extensionUpdatedAt: tunnelSnapshot?.updatedAt
             )
             do {
                 try await client.reportStatus(token: token, status: snapshot)
