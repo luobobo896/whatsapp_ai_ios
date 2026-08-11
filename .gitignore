@@ -6,8 +6,6 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 
 
-# EasyTier 源码（本地克隆，勿入库）
-third_party/easytier/
 
 # macOS
 .DS_Store

@@ -1,4 +1,0 @@
-# EasyTier v2.6.4 固定提交（设计 2.2/6.1）
-# 与 OpenWrt 官方包版本串 2.6.4-8428a89d 及设计文档 2.2 核验一致；
-# scripts/build-easytier-ios.sh 会核验 third_party/easytier HEAD 与此一致。
-8428a89d2dabc94c97d370ec607c6ca142473626

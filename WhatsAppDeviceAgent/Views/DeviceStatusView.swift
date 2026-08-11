@@ -5,6 +5,8 @@ struct DeviceStatusView: View {
     @EnvironmentObject private var model: AppModel
     @State private var showReenrollConfirm = false
     @State private var showSettings = false
+    /// 连接中转圈动画开关。
+    @State private var isSpinning = false
 
     
     
@@ -86,6 +88,14 @@ struct DeviceStatusView: View {
                     Image(systemName: buttonIcon)
                         .font(.system(size: 46))
                         .foregroundColor(.white)
+                        // 连接中：图标持续旋转（转圈圈），其余状态静止。
+                        .rotationEffect(.degrees(isSpinning ? 360 : 0))
+                        .animation(isSpinning
+                                   ? .linear(duration: 1).repeatForever(autoreverses: false)
+                                   : .default, value: isSpinning)
+                        .onChange(of: model.vpnState) { newState in
+                            isSpinning = (newState == .connecting)
+                        }
                     Text(buttonLabel)
                         .font(.title2.bold())
                         .foregroundColor(.white)

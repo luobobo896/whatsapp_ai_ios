@@ -1,11 +1,6 @@
 import XCTest
 
 final class TunnelLifecycleTests: XCTestCase {
-    /// M0-A 后 XCFramework 已链接（scripts/build-easytier-ios.sh）。
-    func testFFIIsLinked() {
-        XCTAssertTrue(EasyTierRuntime.isLinked)
-    }
-
     func testStatusSnapshotRoundTrip() throws {
         let snapshot = TunnelStatusSnapshot(
             phase: .connected,

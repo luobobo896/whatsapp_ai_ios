@@ -10,9 +10,7 @@
 		1A0000000000000000000040 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000009 /* XCTest.framework */; };
 		1A0000000000000000000041 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000009 /* XCTest.framework */; };
 		1A0000000000000000000042 /* PacketTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000006 /* PacketTunnel.appex */; };
-		1A0000000000000000000043 /* EasyTierFFI.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000A /* EasyTierFFI.xcframework */; };
 		1A0000000000000000000044 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000B /* SystemConfiguration.framework */; };
-		1A0000000000000000000045 /* EasyTierFFI.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000A /* EasyTierFFI.xcframework */; };
 		1A0000000000000000000046 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A000000000000000000000B /* SystemConfiguration.framework */; };
 		1A0000000000000000000047 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A0000000000000000000009 /* XCTest.framework */; };
 /* End PBXBuildFile section */
@@ -73,13 +71,11 @@
 		1A0000000000000000000001 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		1A0000000000000000000002 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		1A0000000000000000000003 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
-		1A0000000000000000000004 /* easytier_ffi.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = easytier_ffi.h; sourceTree = "<group>"; };
 		1A0000000000000000000005 /* WhatsAppDeviceAgent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WhatsAppDeviceAgent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A0000000000000000000006 /* PacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A0000000000000000000007 /* WhatsAppDeviceAgentTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WhatsAppDeviceAgentTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A0000000000000000000008 /* PacketTunnelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PacketTunnelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A0000000000000000000009 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
-		1A000000000000000000000A /* EasyTierFFI.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = EasyTierFFI.xcframework; sourceTree = "<group>"; };
 		1A000000000000000000000B /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		1A000000000000000000000C /* WhatsAppDeviceAgentUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = WhatsAppDeviceAgentUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -160,7 +156,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1A0000000000000000000043 /* EasyTierFFI.xcframework in Frameworks */,
 				1A0000000000000000000044 /* SystemConfiguration.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -178,7 +173,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				1A0000000000000000000041 /* XCTest.framework in Frameworks */,
-				1A0000000000000000000045 /* EasyTierFFI.xcframework in Frameworks */,
 				1A0000000000000000000046 /* SystemConfiguration.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -204,7 +198,6 @@
 				1A0000000000000000000024 /* PacketTunnelTests */,
 				1A0000000000000000000025 /* WhatsAppDeviceAgentUITests */,
 				1A0000000000000000000012 /* Configs */,
-				1A0000000000000000000013 /* Vendor */,
 				1A0000000000000000000011 /* Products */,
 				C0B9B3543029794400F12C3B /* Recovered References */,
 			);
@@ -230,31 +223,6 @@
 				1A0000000000000000000003 /* Release.xcconfig */,
 			);
 			path = Configs;
-			sourceTree = "<group>";
-		};
-		1A0000000000000000000013 /* Vendor */ = {
-			isa = PBXGroup;
-			children = (
-				1A0000000000000000000014 /* EasyTier */,
-			);
-			path = Vendor;
-			sourceTree = "<group>";
-		};
-		1A0000000000000000000014 /* EasyTier */ = {
-			isa = PBXGroup;
-			children = (
-				1A0000000000000000000015 /* include */,
-				1A000000000000000000000A /* EasyTierFFI.xcframework */,
-			);
-			path = EasyTier;
-			sourceTree = "<group>";
-		};
-		1A0000000000000000000015 /* include */ = {
-			isa = PBXGroup;
-			children = (
-				1A0000000000000000000004 /* easytier_ffi.h */,
-			);
-			path = include;
 			sourceTree = "<group>";
 		};
 		C0B9B3543029794400F12C3B /* Recovered References */ = {
@@ -637,8 +605,8 @@
 		1A0000000000000000000082 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = WhatsAppDeviceAgent/WhatsAppDeviceAgent.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = A3JP3VUZ78;
@@ -657,8 +625,8 @@
 		1A0000000000000000000083 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CLANG_ENABLE_OBJC_WEAK = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = YES;
 				CODE_SIGN_ENTITLEMENTS = WhatsAppDeviceAgent/WhatsAppDeviceAgent.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = A3JP3VUZ78;
@@ -696,7 +664,6 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = Vendor/EasyTier/include/easytier_ffi.h;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -723,7 +690,6 @@
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = Vendor/EasyTier/include/easytier_ffi.h;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
@@ -771,7 +737,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).packet-tunnel-tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = Vendor/EasyTier/include/easytier_ffi.h;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WhatsAppDeviceAgent.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WhatsAppDeviceAgent";
 			};
@@ -788,7 +753,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_BUNDLE_ID).packet-tunnel-tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_OBJC_BRIDGING_HEADER = Vendor/EasyTier/include/easytier_ffi.h;
 				TARGETED_DEVICE_FAMILY = 1;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WhatsAppDeviceAgent.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WhatsAppDeviceAgent";
 			};

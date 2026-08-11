@@ -2,8 +2,8 @@
 
 本目录即独立仓库 `whatsapp_ai_ios`（由 whatsapp_ai 主仓迁移而来）的根目录，
 `.git` / README / docs / scripts / .gitignore 全部收敛于此。
-iPhone App + Network Extension（PacketTunnel）通过 easytier 组网接入平台 `10.168.0.0/16` 虚拟网络，
-注册/配置下发/心跳/组网状态走平台 `/api/ios-agent/v1` 接口。
+iPhone App + Network Extension（PacketTunnel）通过平台 `/api/ios-agent/v1` 接口完成注册/配置下发/心跳/状态上报。
+> 注：easytier 组件已移除（数据面待按官方 EasyTier-iOS 重新集成），当前 VPN 隧道扩展为占位实现，不提供组网数据面。
 与平台主仓（whatsapp_ai）的接口契约：`/api/ios-agent/v1`（enroll / config / status / token/rotate），
 平台地址默认 `https://hk.hsddns.com`（注册页可改）。
 （工程基于 `docs/design/2026-08-06-ios-whatsapp-broadcast-vpn.md` 第 6 章搭建。）
@@ -12,16 +12,14 @@ iPhone App + Network Extension（PacketTunnel）通过 easytier 组网接入平�
 
 ```text
 WhatsAppDeviceAgent.xcodeproj    Xcode 工程（App + PacketTunnel Extension + 3 个测试 target）
-Configs/                        Base/Debug/Release.xcconfig（统一 bundle 前缀、iOS 16.4、EASYTIER_IO_MODE）
+Configs/                        Base/Debug/Release.xcconfig（统一 bundle 前缀、iOS 16.4）
 Shared/                         App 与 Extension 共用：配置/状态模型、Keychain、App Group、API 客户端、脱敏日志
 WhatsAppDeviceAgent/             主 App：注册、状态页、VPN profile、enrollment
-PacketTunnel/                   Network Extension：隧道生命周期、EasyTier Bridge、TOML builder、fd/packetFlow 桥
+PacketTunnel/                   Network Extension：隧道生命周期、状态上报（easytier 组件已移除）
 WhatsAppDeviceAgentTests/        主 App 单元测试
 PacketTunnelTests/               Extension 单元测试
 WhatsAppDeviceAgentUITests/      UI 测试（真实注册 HK 平台）
-Vendor/EasyTier/                include/easytier_ffi.h（人工维护 ABI）、SOURCE_COMMIT、LICENSE 占位、EasyTierFFI.xcframework（构建产物，gitignore）
 docs/                           设计 / 测试 / 部署文档
-scripts/                        EasyTier iOS XCFramework 构建脚本与 fork patch
 ```
 
 ### 各模块职责
@@ -64,8 +62,6 @@ scripts/                        EasyTier iOS XCFramework 构建脚本与 fork pa
 | 文件 | 职责 |
 |------|------|
 | `PacketTunnelProvider.swift` | 隧道生命周期（fd 轨）：读配置/secret → 校验 → NE 设置（只路由 10.168.0.0/16）→ dup TUN fd → parse/run/set_tun_fd → 等 running+peer（30s）→ connected；stop/sleep/wake；每 15s 采集状态写 App Group |
-| `EasyTierBridge.swift` | EasyTier C ABI 唯一入口（parse_config / run_network_instance / set_tun_fd / retain / collect_network_infos / get_error_msg / free_string），由 `#if EASYTIER_FFI_LINKED` 保护 |
-| `EasyTierConfigBuilder.swift` | 结构化字段 → EasyTier TOML（instance/ipv4/网络身份/udp+tcp peer/flags/mtu），带转义与校验 |
 | `TunnelFileDescriptor.swift` | 通过 packetFlow KVC 提取 TUN fd 并 dup（仅 fd 轨编译） |
 | `PacketFlowBridge.swift` | App Store 轨（packetFlow）预留：未接入 FFI，调用即 `preconditionFailure`（M0-E） |
 | `TunnelStatusReporter.swift` | 把隧道状态快照写入 App Group，供主 App 展示/上报（类型定义在 Shared） |
@@ -76,21 +72,12 @@ scripts/                        EasyTier iOS XCFramework 构建脚本与 fork pa
 | 目录 | 覆盖 |
 |------|------|
 | `WhatsAppDeviceAgentTests/` | AgentConfig 校验、EnrollmentService URL 校验、VPNManager profile 构造（`@testable import` 主 App） |
-| `PacketTunnelTests/` | EasyTier TOML 构建与转义、TunnelStatus 快照 round-trip、FFI 链接断言（直接编译 Shared + PacketTunnel 源码） |
+| `PacketTunnelTests/` | TunnelStatus 快照 round-trip（直接编译 Shared + PacketTunnel 源码） |
 | `WhatsAppDeviceAgentUITests/` | 真实注册 HK 流程（注册码由运行脚本注入，占位符 `__ENROLL_CODE__` 时自动 skip） |
 
-#### `Vendor/EasyTier/` — EasyTier FFI
-
-- `include/easytier_ffi.h`：人工维护的 C ABI 声明（作为 PacketTunnel target 的 bridging header）。
-- `SOURCE_COMMIT`：固定 fork 提交（v2.6.4-8428a89d），`scripts/build-easytier-ios.sh` 会核验克隆 HEAD 一致。
-- `LICENSE-LGPL-3.0`：LGPL 许可占位。
-- `EasyTierFFI.xcframework`：构建产物（gitignore，不入库），由 `scripts/build-easytier-ios.sh` 生成。
 
 #### `scripts/` — 构建与核验
 
-- `build-easytier-ios.sh`：核验固定 commit 与允许的 fork 文件 → Rust 1.95 构建 3 架构 → lipo 合并模拟器库 → `xcodebuild -create-xcframework` → 符号核验 → 输出 SHA-256。
-- `verify-easytier-ffi-symbols.sh`：核验 xcframework 导出符号与头文件一致（基础 ABI 7 个必选 + packetFlow 3 个可选）。
-- `easytier-fork-v2.6.4-8428a89d.patch`：EasyTier fork 最小修改（easytier-ffi / core / instance）。
 
 #### `docs/` — 设计 / 测试 / 部署文档
 
@@ -101,40 +88,13 @@ scripts/                        EasyTier iOS XCFramework 构建脚本与 fork pa
 ## 打开与运行
 
 1. 打开 `WhatsAppDeviceAgent.xcodeproj`（需要 Xcode 16+）。
-2. 首次克隆后先构建 EasyTier FFI（XCFramework 为构建产物、不入库），见下文「构建 EasyTier FFI」。
 3. Scheme 选 `WhatsAppDeviceAgent`，选择模拟器或真机运行。
    - 模拟器：直接 Run，注册用手动输入注册码（模拟器无摄像头）。
    - 真机：Signing 填 Apple Team、iPhone 开启开发者模式；Network Extension（VPN）需付费开发者账号。
      更换 bundle 前缀时，App/Extension/App Group/Keychain group 必须成组修改（设计 6.1）。
-4. 当前 M3 接线状态：`EasyTierRuntime.isLinked == true`，Debug（fd 轨）已接入
-   easytier FFI（parse → run → set_tun_fd → collect），真机组网可跑通；
+4. easytier 组件已移除（数据面待按官方 EasyTier-iOS 重新集成）。
    Release（packetFlow 轨）为 M0-E 预留，启动 VPN 会明确失败，不伪在线。
 
-## 构建 EasyTier FFI（M0-A 前置，一次性）
-
-`Vendor/EasyTier/EasyTierFFI.xcframework` 是构建产物（已 gitignore，不入库），首次克隆本仓库后需本地构建：
-
-1. 安装 Rust 1.95。
-2. 在本目录（仓库根目录）准备本地克隆（已被 `.gitignore` 忽略）：
-
-```bash
-mkdir -p third_party
-git clone https://github.com/EasyTier/EasyTier.git third_party/easytier
-cd third_party/easytier
-git checkout 8428a89d2dabc94c97d370ec607c6ca142473626   # 与 Vendor/EasyTier/SOURCE_COMMIT 一致（v2.6.4）
-git apply ../scripts/easytier-fork-v2.6.4-8428a89d.patch
-cd ..
-```
-
-3. 构建并核验导出符号：
-
-```bash
-rtk bash scripts/build-easytier-ios.sh
-rtk bash scripts/verify-easytier-ffi-symbols.sh
-```
-
-4. 产物写入 `Vendor/EasyTier/EasyTierFFI.xcframework`（+ `.sha256`），
-   供 App / PacketTunnel target 链接。
 
 ## 验证命令（从本目录执行）
 
@@ -159,7 +119,7 @@ rtk xcodebuild -project WhatsAppDeviceAgent.xcodeproj \
   `docs/design/2026-08-04-iphone-whatsapp-broadcast-feasibility.md`（可行性）、
   `docs/design/2026-08-10-ios-solution-review.md`（方案评审）
 - 测试：`docs/testing/2026-08-10-ios-real-device-onboarding.md`（真机接入 HK 测试平台）、
-  `docs/testing/2026-08-06-ios-easytier-wda-m0.md`
+  （easytier 相关测试文档已随组件移除）
 - 部署：`docs/deployment/ios-device-enroll-test-sop.md`
 
 ## 与平台对接接口
