@@ -177,17 +177,34 @@ iPhone（公网 Wi-Fi 或 4G/5G，可切换）
 4. 美国 EasyTier 节点能看到 iPhone peer。
 5. 双向 TCP 流量能从美国节点进入 iPhone TUN 并到达 iPhone 本地 WDA `8100`。
 
-本设计 v1 采用 WireGuard Apple 同类项目使用的 `packetFlow` KVC fd 提取法：
+本设计 v1 采用 WireGuard Apple 同款的 fd 提取法（`WireGuardAdapter.tunnelFileDescriptor`）：遍历进程 fd，用 `getpeername` + `CTLIOCGINFO` 匹配 `com.apple.net.utun_control` 找到 TUN fd，再 `dup` 持有：
 
 ```swift
-guard let number = packetFlow.value(forKeyPath: "socket.fileDescriptor") as? NSNumber else {
-    throw TunnelError.tunFileDescriptorUnavailable
+var ctlInfo = ctl_info()
+withUnsafeMutablePointer(to: &ctlInfo.ctl_name) {
+    $0.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: $0.pointee)) {
+        _ = strcpy($0, "com.apple.net.utun_control")
+    }
 }
-let ownedFD = dup(number.int32Value)
-guard ownedFD >= 0 else { throw TunnelError.tunFileDescriptorDupFailed(errno) }
+for fd: Int32 in 0...1024 {
+    var addr = sockaddr_ctl()
+    var ret: Int32 = -1
+    var len = socklen_t(MemoryLayout.size(ofValue: addr))
+    withUnsafeMutablePointer(to: &addr) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            ret = getpeername(fd, $0, &len)
+        }
+    }
+    if ret != 0 || addr.sc_family != AF_SYSTEM { continue }
+    if ctlInfo.ctl_id == 0 {
+        ret = ioctl(fd, CTLIOCGINFO, &ctlInfo)
+        if ret != 0 { continue }
+    }
+    if addr.sc_id == ctlInfo.ctl_id { return fd }
+}
 ```
 
-这是未公开的 KVC 路径，不是 Apple 公共 API 契约。选择它的理由是 EasyTier v2.6.4 FFI 只接受 fd，且 v1 是内部签名分发。任何取值失败都必须让隧道启动失败并上报 `TUN_FD_UNAVAILABLE`，禁止回退为空 VPN 或伪在线。
+早期使用的 `packetFlow.value(forKeyPath: "socket.fileDescriptor")` 是未公开 KVC 路径，iOS 16+ 实测返回 nil（WireGuard 官方已弃用），导致真机启动报 `TUN_FD_UNAVAILABLE`，因此替换为上述遍历方案。选择 fd 直取的理由是 EasyTier v2.6.4 FFI 只接受 fd，且 v1 是内部签名分发。任何取值失败都必须让隧道启动失败并上报 `TUN_FD_UNAVAILABLE`，禁止回退为空 VPN 或伪在线。
 
 App Store 交付轨必须把 EasyTier 改造为基于 `NEPacketTunnelFlow.readPackets/writePackets` 的双向回调桥接，证明背压、取消、内存上限和吞吐后重新评审，并取得所需 Network Extension entitlement；不能把 v1 私有 KVC 实现直接送审。该改造通过后，WDA 仍按第 8 章由 USB/Xcode 单独激活。
 

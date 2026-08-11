@@ -116,17 +116,21 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         settings.ipv4Settings = ipv4
         settings.mtu = 1380
 
-        // 4. setTunnelNetworkSettings 成功后提取并 dup TUN fd（设计 4.1 KVC 路径）。
+        // 4. setTunnelNetworkSettings 成功后提取并 dup TUN fd（设计 4.1，getpeername 遍历方案）。
         setTunnelNetworkSettings(settings) { [weak self] error in
             guard let self else { return }
             self.queue.async {
-                if error != nil {
+                if let error {
+                    // 设计 6.5：设置失败同样以隧道启动失败返回，记录底层原因供排查。
+                    self.logger.error("setTunnelNetworkSettings failed: \(error.localizedDescription)")
                     self.failStart(completionHandler, error: .tunnelFdUnavailable)
                     return
                 }
                 do {
                     self.ownedFD = try TunnelFileDescriptor.dup(from: self.packetFlow)
                 } catch {
+                    // 设计 4.1：fd 取值失败必须让隧道启动失败，记录底层错误（KVC/遍历失败）。
+                    self.logger.error("TUN fd extraction failed: \(error)")
                     self.failStart(completionHandler, error: .tunnelFdUnavailable)
                     return
                 }
