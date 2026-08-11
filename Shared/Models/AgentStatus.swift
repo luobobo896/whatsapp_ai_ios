@@ -13,19 +13,23 @@ struct AgentStatus: Codable, Equatable {
     var lastErrorCode: String?
     /// 最近一次 Extension 写入状态的时间戳。
     var extensionUpdatedAt: Date?
+    /// WebDriverAgent 直连地址（`http://<局域网IP>:8100`），云平台直接访问，不依赖 VPN。
+    var wdaUrl: String?
 
     init(appStatus: AgentAppStatus = .unknown,
          vpnPhase: String = "",
          virtualIP: String? = nil,
          peerCount: Int = 0,
          lastErrorCode: String? = nil,
-         extensionUpdatedAt: Date? = nil) {
+         extensionUpdatedAt: Date? = nil,
+         wdaUrl: String? = nil) {
         self.appStatus = appStatus
         self.vpnPhase = vpnPhase
         self.virtualIP = virtualIP
         self.peerCount = peerCount
         self.lastErrorCode = lastErrorCode
         self.extensionUpdatedAt = extensionUpdatedAt
+        self.wdaUrl = wdaUrl
     }
 }
 

@@ -50,6 +50,11 @@ final class AppModel: ObservableObject {
     }
 
     /// 设备唯一 ID 短码（sha256(installationId) 前 12 位，与平台设备列表「设备 ID」一致，一一对应）。
+    /// WDA 直连地址（局域网 IP + 8100），云平台直接访问（不依赖 VPN）。
+    var wdaUrl: String? {
+        DeviceNetwork.lanIPv4().map { "http://\($0):8100" }
+    }
+
     var deviceIDShort: String {
         let id = enrollmentService.installationID()
         let digest = SHA256.hash(data: Data(id.utf8))
@@ -132,13 +137,16 @@ final class AppModel: ObservableObject {
             let tunnelSnapshot = try? AppGroupStore.readJSON(
                 TunnelStatusSnapshot.self,
                 from: AppGroupStore.statusFileName)
+            // WDA 直连：上报局域网 IP 作为 WebDriverAgent 访问地址（设计改为不依赖 VPN）。
+            let wdaUrl = DeviceNetwork.lanIPv4().map { "http://\($0):8100" }
             let snapshot = AgentStatus(
                 appStatus: status,
                 vpnPhase: reportedVPNPhase,
                 virtualIP: config.iphoneIPv4,
                 peerCount: 1,
                 lastErrorCode: tunnelSnapshot?.lastErrorCode,
-                extensionUpdatedAt: tunnelSnapshot?.updatedAt
+                extensionUpdatedAt: tunnelSnapshot?.updatedAt,
+                wdaUrl: wdaUrl
             )
             do {
                 try await client.reportStatus(token: token, status: snapshot)

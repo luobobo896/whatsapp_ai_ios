@@ -142,6 +142,7 @@ struct DeviceStatusView: View {
                 .font(.headline)
             Divider()
             row("状态", value: statusText, color: statusColor)
+            row("WDA 地址", value: model.wdaUrl ?? "—")
             row("服务器", value: "\(config.relayHost):\(config.relayPort)")
             row("虚拟 IP", value: config.iphoneIPv4)
             row("延迟", value: model.serverLatency ?? "—")
