@@ -87,7 +87,109 @@ rtk xcodebuild -project WhatsAppDeviceAgent.xcodeproj \
   `docs/testing/2026-08-06-ios-easytier-wda-m0.md`
 - 部署：`docs/deployment/ios-device-enroll-test-sop.md`
 
-## 与平台主仓（whatsapp_ai）的关系
+## 与平台对接接口
 
-- 接口契约：`/api/ios-agent/v1`（enroll / config / status / token/rotate）；平台默认 `https://hk.hsddns.com`。
-- easytier 服务端运维（`deploy-easytier-test.sh`、HK 服务器部署）属平台侧，不在本仓库。
+接口定义以平台主仓（whatsapp_ai）源码为准：`internal/handler/mobile_agent.go`（设备侧）、
+`internal/handler/auth.go`（登录）、`internal/handler/mobile_devices.go`（管理端设备）、
+`internal/handler/easytier.go`（easytier 运维），路由注册见 `cmd/server/main.go`。
+
+### 后端地址
+
+| 环境 | 后端地址 | 说明 |
+|------|----------|------|
+| 测试（HK） | `https://hk.hsddns.com` | iOS 注册页默认值；iOS 测试功能仅部署 HK |
+| 生产 | `https://us.hsddns.com` | 不部署 iOS 测试功能（iOS 接口仅 HK 可用） |
+| easytier relay | `hk.hsddns.com:11010`（UDP/TCP） | 组网服务端，虚拟网 `10.168.0.0/16` |
+
+### 设备侧接口（App / Network Extension 直接调用）
+
+前缀 `/api/ios-agent/v1`；除注册外均需 `Authorization: Bearer <deviceToken>`（token 只放 header，服务端存 SHA-256）。
+
+| 方法 | 路径 | 用途 | 认证 | 说明 |
+|------|------|------|------|------|
+| POST | `/api/ios-agent/v1/enroll` | 注册 | 无 | 一次性租户注册码换 `deviceId` + `deviceToken` + 网络配置；`networkSecret`/`deviceToken` 仅本次响应明文，之后只存共享 Keychain |
+| GET | `/api/ios-agent/v1/config` | 拉取配置 | Bearer | 只返回非秘密字段（`networkSecret` 为空，secret 仅在 enroll 下发） |
+| POST | `/api/ios-agent/v1/status` | 心跳 / 状态上报 | Bearer | App 前台每 20 秒心跳；Extension 状态快照供平台判在线/离线（90s 超时窗口）；成功返回 204 |
+| POST | `/api/ios-agent/v1/token/rotate` | token 轮换 | Bearer | ⚠️ iOS 侧 `AgentAPIClient.rotateToken` 已实现，但主仓 `mobile_agent.go` **尚未注册该路由，当前调用返回 404**，契约待主仓补齐或 iOS 侧移除 |
+
+**enroll 请求**（`EnrollRequest` / 主仓 `MobileEnrollRequest`）：
+
+```json
+{
+  "enrollmentCode": "9C4K-7Q2M-P8RX-H5TW",
+  "installationId": "<Keychain 持久化的设备唯一 ID>",
+  "appVersion": "1.0",
+  "osVersion": "18.5",
+  "deviceModel": "iPhone",
+  "locale": "zh_CN",
+  "platform": "ios"
+}
+```
+
+**enroll 成功响应**（`EnrollResponse`，HTTP 201）：
+
+```json
+{
+  "deviceId": "abcdefghijklmnopqrstuvwx",
+  "deviceToken": "<明文 token，仅本次>",
+  "config": {
+    "schemaVersion": 1,
+    "configVersion": 1,
+    "networkName": "wa-ios",
+    "networkCIDR": "10.168.0.0/16",
+    "iphoneIPv4": "10.168.1.5",
+    "relayHost": "hk.hsddns.com",
+    "relayPort": 11010,
+    "networkSecret": "<明文 secret，仅本次>"
+  }
+}
+```
+
+**enroll 失败**：注册码不存在/过期/已消费/设备不可注册 → HTTP 401，`{"error":{"code":"IOS_ENROLLMENT_INVALID","message":"注册码无效或已过期，请联系管理员重新签发。"}}`
+
+**status 请求**（`AgentStatus` / 主仓 `MobileStatusReport`）：
+
+```json
+{
+  "appStatus": "online",
+  "vpnPhase": "connected",
+  "virtualIP": "10.168.1.5",
+  "peerCount": 1,
+  "lastErrorCode": null
+}
+```
+
+### 平台管理端接口（Web 控制台）
+
+管理端走 session 认证（邮箱+密码登录后 Set-Cookie `session_id`，后续请求带 CSRF），与设备侧 Bearer 相互独立。
+
+**登录（用户明确要求列出）**：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/auth/login` | 登录：`{"email":"...","password":"..."}` → 204 + Set-Cookie `session_id`；失败 401 `AUTH_INVALID`，连续失败限流（5 次/15 分钟锁 15 分钟） |
+| POST | `/api/auth/logout` | 退出登录（需 session + CSRF） |
+| GET | `/api/auth/me` | 当前会话信息（需 session + CSRF） |
+
+**设备管理**（`/api/ios-devices`，iOS 先行、兼容 Android）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/ios-devices` | 当前租户设备列表（含 easytier 组网状态 `networkingConnected`） |
+| POST | `/api/ios-devices/enrollment-code` | 生成/刷新租户级一次性注册码（201 `{"enrollmentCode":"..."}`） |
+| GET | `/api/ios-devices/:id/events` | 设备操作/状态事件日志 |
+| PATCH | `/api/ios-devices/:id` | 补录/更新设备（如 name） |
+
+**easytier 服务端运维**（`/api/easytier`，属平台侧，不在本仓库实现）：
+
+| 方法 | 路径 | 权限 | 说明 |
+|------|------|------|------|
+| GET | `/api/easytier/status` | `ios_devices:view` | 组网服务端状态 |
+| GET | `/api/easytier/config` | `ios_devices:view` | 当前配置查看 |
+| POST | `/api/easytier/action` | `ios_devices:update` | 启停等运维动作 |
+| PUT | `/api/easytier/config` | `ios_devices:update` | 配置修改 |
+
+### 契约差异（已确认）
+
+- `POST /api/ios-agent/v1/token/rotate`：iOS 侧已实现调用，主仓未注册路由 → 当前 404，待对齐。
+- `status` 上报：iOS 侧额外携带 `extensionUpdatedAt` 字段，主仓 `MobileStatusReport` 未声明，解码时忽略，不影响。
