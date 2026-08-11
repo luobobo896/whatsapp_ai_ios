@@ -28,6 +28,11 @@ final class AppModel: ObservableObject {
     @Published var lastError: String?
     @Published var vpnState: VPNState = .idle
     @Published var serverLatency: String?
+    /// 隧道累计下行/上行流量文本（来自 Extension 快照，设计 6.5）。
+    @Published var tunnelRxText: String?
+    @Published var tunnelTxText: String?
+    /// 隧道进入 connected 的时刻（视图据此显示连接时间与已连接时长）。
+    @Published var connectedAt: Date?
 
     private let enrollmentService: EnrollmentService
     private let vpnManager: VPNManager
@@ -218,6 +223,12 @@ final class AppModel: ObservableObject {
         case .connected:
             vpnState = .connected
             if lastError != nil { lastError = nil }
+            if let latencyMs = snapshot.latencyMs {
+                serverLatency = "\(latencyMs) ms"
+            }
+            tunnelRxText = snapshot.rxBytes.map(Self.formatBytes)
+            tunnelTxText = snapshot.txBytes.map(Self.formatBytes)
+            connectedAt = snapshot.connectedAt ?? Date()
         case .connecting:
             vpnState = .connecting
         case .stopped, .recoveryRequired, .ffiNotConfigured:
@@ -225,7 +236,18 @@ final class AppModel: ObservableObject {
                 vpnState = .failed
                 lastError = code
             }
+            serverLatency = nil
+            tunnelRxText = nil
+            tunnelTxText = nil
+            connectedAt = nil
         }
+    }
+
+    /// 字节数格式化为可读文本（如 5.2 KB）。
+    private static func formatBytes(_ bytes: UInt64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
     }
 
     /// 上报给平台的 vpnPhase 语义（设计 7.2 与 TunnelPhase 对齐）。

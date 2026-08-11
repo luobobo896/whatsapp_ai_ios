@@ -16,6 +16,8 @@ struct EnrollRequest: Encodable, Equatable {
     var deviceModel: String
     var locale: String
     var platform: String
+    /// 开发签名包读取的真实 UDID 列表（embedded.mobileprovision，可能多台）。
+    var deviceUdids: [String]
 }
 
 /// 注册成功响应（设计 7.1），token/secret 仅本次返回明文。

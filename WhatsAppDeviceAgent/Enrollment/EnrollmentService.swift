@@ -37,7 +37,8 @@ struct EnrollmentService {
             osVersion: info.iosVersion,
             deviceModel: info.deviceModel,
             locale: info.locale,
-            platform: "ios"
+            platform: "ios",
+            deviceUdids: DeviceUdid.provisionedUdids()
         )
         let client = AgentAPIClient(baseURL: url)
         let response = try await client.enroll(request: request)

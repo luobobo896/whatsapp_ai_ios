@@ -135,6 +135,14 @@ struct DeviceStatusView: View {
             row("服务器", value: "\(config.relayHost):\(config.relayPort)")
             row("虚拟 IP", value: config.iphoneIPv4)
             row("延迟", value: model.serverLatency ?? "—")
+            row("下行", value: model.tunnelRxText ?? "—")
+            row("上行", value: model.tunnelTxText ?? "—")
+            if let connectedAt = model.connectedAt {
+                row("连接时间", value: Self.timeFormatter.string(from: connectedAt))
+                TimelineView(.periodic(from: connectedAt, by: 1)) { context in
+                    row("已连接", value: Self.durationText(from: connectedAt, to: context.date))
+                }
+            }
         }
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
@@ -157,6 +165,23 @@ struct DeviceStatusView: View {
         case .connected: return .green
         case .failed: return .red
         }
+    }
+
+    /// 连接时间格式化（HH:mm:ss）。
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
+    /// 已连接时长（如 00:01:23）。
+    private static func durationText(from start: Date, to end: Date) -> String {
+        let total = Int(end.timeIntervalSince(start))
+        guard total >= 0 else { return "00:00:00" }
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        return String(format: "%02d:%02d:%02d", h, m, s)
     }
 
     private func row(_ title: String, value: String, color: Color = .primary) -> some View {

@@ -670,7 +670,7 @@ App 只做两个实际页面：
    - 提供启动/停止 VPN 图标按钮和重新注册命令；重新注册必须使用管理员新签发的 enrollment code，不能用旧 token 自助绕过禁用；
    - 不展示 secret、token、WDA URL，不提供消息发送入口。
 
-App 无法读取真实 UDID。UDID 在 USB 初始化时由 Mac 获取并录入平台；App 自己生成随机 `installationId`，只上传其 SHA-256 用于绑定检查。
+普通 App 无法读取真实 UDID（iOS 7 起对第三方关闭）；但开发/Ad Hoc 签名包的 `embedded.mobileprovision` 含 `ProvisionedDevices`，App 可解析出真实 UDID 列表（可能含多台，无法自证是哪台）。因此：App 注册时上报 UDID 列表（`deviceUdids`），平台存 `udid` 字段；若 profile 含多台设备，由管理员在管理端 PATCH「补录 UDID」精确确认（Mac/USB 初始化时已知真实 UDID），或以单设备 profile 使上报唯一。App 仍生成随机 `installationId`，平台以 `installation_id_hash` 为唯一键 upsert。
 
 ### 6.8 iOS 后台边界
 
@@ -1058,7 +1058,7 @@ CREATE INDEX IF NOT EXISTS idx_mobile_devices_tenant_status
     ON mobile_devices(tenant_id, status, id);
 CREATE INDEX IF NOT EXISTS idx_mobile_devices_controller_enabled
     ON mobile_devices(controller_id, enabled, id);
--- 设备以 installation_id_hash 为唯一标识（App 持久化 installationId）；udid 已移除。
+-- 设备以 installation_id_hash 为唯一标识（App 持久化 installationId）；udid 为真实 Apple 设备 UDID（App 从 provisioning profile 上报或管理员补录）。
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mobile_devices_installation_hash
     ON mobile_devices(installation_id_hash)
     WHERE installation_id_hash <> '' AND status <> 'retired';

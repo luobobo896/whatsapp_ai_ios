@@ -37,9 +37,9 @@ private struct EasyTierInstanceStatus {
     var errorMsg: String?
     var peerCount: Int
     var virtualIP: String?
-    var events: [String]
-    var routesSummary: String
-    var rawJSON: String
+    var rxBytes: UInt64
+    var txBytes: UInt64
+    var latencyMs: Int
 }
 
 /// Packet Tunnel 生命周期（设计 6.5）。
@@ -197,32 +197,17 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 TunnelStatusReporter.write(TunnelStatusSnapshot(
                     phase: .connected,
                     virtualIP: info.virtualIP ?? config.iphoneIPv4,
-                    peerCount: info.peerCount))
+                    peerCount: info.peerCount,
+                    rxBytes: info.rxBytes,
+                    txBytes: info.txBytes,
+                    latencyMs: info.latencyMs,
+                    connectedAt: Date()))
                 completionHandler(nil)
             } else if let deadline = self.pollDeadline, Date() >= deadline {
                 // 超时：完整 stop 并返回错误（设计 6.5 步骤 8/9）。
                 timer.cancel()
                 self.pollTimer = nil
-                // TEMP-DIAG: 验证 collect_network_infos 条数语义修复，验证后移除
-                var lastError = info?.errorMsg ?? PacketTunnelError.connectionTimeout.errorCode
-                if let info {
-                    if !info.running {
-                        lastError = "TEMP_DIAG_not_running peers=\(info.peerCount) err=\(info.errorMsg ?? "nil")"
-                    } else if info.peerCount == 0 {
-                        lastError = "TEMP_DIAG_no_peer running=true err=\(info.errorMsg ?? "nil")"
-                    }
-                } else {
-                    switch EasyTierBridge.collectNetworkInfos(maxCount: 8) {
-                    case .success(let infos):
-                        lastError = "TEMP_DIAG_info_nil keys=\(infos.keys.sorted().joined(separator: ",")) mine=\(infos[instanceName] ?? "nil")"
-                    case .failure(let ffiErr):
-                        if case .message(let m) = ffiErr {
-                            lastError = "TEMP_DIAG_info_nil collect_failed msg=\(m)"
-                        } else {
-                            lastError = "TEMP_DIAG_info_nil collect_failed"
-                        }
-                    }
-                }
+                let lastError = info?.errorMsg ?? PacketTunnelError.connectionTimeout.errorCode
                 self.teardown()
                 TunnelStatusReporter.write(TunnelStatusSnapshot(
                     phase: .stopped,
@@ -246,16 +231,33 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let running = (obj["running"] as? Bool) ?? false
         let errorMsg = obj["error_msg"] as? String
         let peerCount = (obj["peers"] as? [Any])?.count ?? 0
-        let events = (obj["events"] as? [String]) ?? []
-        // TEMP-DIAG: 汇总路由表，确认手机侧是否学到 10.168.0.0/16
-        var routesSummary = ""
-        if let routes = obj["routes"] as? [[String: Any]] {
-            let parts = routes.compactMap { route -> String? in
-                guard let ipv4 = route["ipv4"] as? String else { return nil }
-                let nh = (route["next_hop_hostname"] as? String) ?? (route["next_hop_ipv4"] as? String ?? "-")
-                return "\(ipv4)->\(nh)"
+        var rxBytes: UInt64 = 0
+        var txBytes: UInt64 = 0
+        var latencyMs = 0
+        if let peers = obj["peers"] as? [[String: Any]] {
+            for peer in peers {
+                guard let conns = peer["conns"] as? [[String: Any]] else { continue }
+                for conn in conns {
+                    guard let stats = conn["stats"] as? [String: Any] else { continue }
+                    if let v = stats["rx_bytes"] as? UInt64 { rxBytes += v }
+                    else if let v = stats["rx_bytes"] as? Int { rxBytes += UInt64(v) }
+                    if let v = stats["tx_bytes"] as? UInt64 { txBytes += v }
+                    else if let v = stats["tx_bytes"] as? Int { txBytes += UInt64(v) }
+                    // 连接统计的 latency_us 在客户端常为 0，延迟以路由 path_latency(ms) 为准。
+                    if let us = stats["latency_us"] as? Int {
+                        latencyMs = max(latencyMs, us / 1000)
+                    } else if let us = stats["latency_us"] as? UInt64 {
+                        latencyMs = max(latencyMs, Int(us / 1000))
+                    }
+                }
             }
-            routesSummary = parts.joined(separator: ",")
+        }
+        if let routes = obj["routes"] as? [[String: Any]] {
+            for route in routes {
+                if let pathLatency = route["path_latency"] as? Int, pathLatency > 0 {
+                    latencyMs = max(latencyMs, pathLatency)
+                }
+            }
         }
         var virtualIP: String?
         if let node = obj["my_node_info"] as? [String: Any],
@@ -266,9 +268,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                                       errorMsg: errorMsg,
                                       peerCount: peerCount,
                                       virtualIP: virtualIP,
-                                      events: events,
-                                      routesSummary: routesSummary,
-                                      rawJSON: String(json.prefix(8000)))
+                                      rxBytes: rxBytes,
+                                      txBytes: txBytes,
+                                      latencyMs: latencyMs)
     }
     #endif
 
@@ -334,22 +336,19 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let instanceName, let config = currentConfig else { return }
         let info = collectInstanceInfo(instanceName)
         let running = info?.running ?? false
-        // TEMP-DIAG: 提取 TunDevice 事件定位数据面（TunDeviceReady=成功 / TunDeviceError=失败原因），验证后移除
-        let allEvents = info?.events ?? []
-        let tunEvents = allEvents.filter { $0.contains("TunDevice") }
-        let firstEventLabel = allEvents.first.map { String($0.prefix(160)) } ?? "none"
-        let eventsDiag: String
-        if !tunEvents.isEmpty {
-            eventsDiag = tunEvents.map { String($0.prefix(400)) }.joined(separator: " || ")
-        } else {
-            eventsDiag = "no-tun-event first=\(firstEventLabel)"
-        }
-        let diag = "TEMP_DIAG raw=\(info?.rawJSON ?? "nil")"
+        // 保持 connectedAt 不变，避免每 15 秒覆盖导致时长重置。
+        let connectedAt = (try? AppGroupStore.readJSON(
+            TunnelStatusSnapshot.self,
+            from: AppGroupStore.statusFileName))?.connectedAt ?? (running ? Date() : nil)
         TunnelStatusReporter.write(TunnelStatusSnapshot(
             phase: running ? .connected : .recoveryRequired,
             virtualIP: info?.virtualIP ?? config.iphoneIPv4,
             peerCount: info?.peerCount ?? 0,
-            lastErrorCode: String(diag.prefix(8000))))
+            lastErrorCode: info?.errorMsg,
+            rxBytes: info?.rxBytes,
+            txBytes: info?.txBytes,
+            latencyMs: info?.latencyMs,
+            connectedAt: connectedAt))
         // wake 后 30 秒仍无 peer -> 系统重连。
         if let deadline = wakeDeadline, !running, Date() >= deadline {
             wakeDeadline = nil
