@@ -31,6 +31,7 @@ easytier-contrib/easytier-ffi/Cargo.toml
 easytier-contrib/easytier-ffi/src/lib.rs
 easytier/src/core.rs
 easytier/src/instance/instance.rs
+easytier/src/instance_manager.rs
 "
 DIRTY_FILES="$(git -C "$EASYTIER_DIR" status --porcelain | awk '{print $2}')"
 for f in $DIRTY_FILES; do

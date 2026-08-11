@@ -5,9 +5,6 @@ build/
 xcuserdata/
 *.xcworkspace/xcuserdata/
 
-# EasyTier FFI 构建产物（由 scripts/build-easytier-ios.sh 生成）
-Vendor/EasyTier/EasyTierFFI.xcframework/
-Vendor/EasyTier/EasyTierFFI.xcframework.sha256
 
 # EasyTier 源码（本地克隆，勿入库）
 third_party/easytier/

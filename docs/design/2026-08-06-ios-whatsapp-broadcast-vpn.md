@@ -516,6 +516,9 @@ Keychain group      $(AppIdentifierPrefix)com.whatsappai.deviceagent.shared
    - 新增 Rust 单测覆盖 null、重复 instance、无效 fd、释放字符串。
 3. `easytier/src/core.rs` 与 `easytier/src/instance/instance.rs`
    - 移除 CLI 和 FFI/`Instance::new` 路径的完整 config dump，或调用统一脱敏 dump；只记录配置路径、instance name 和 source，不改变网络行为。
+4. `easytier/src/instance_manager.rs`
+   - `collect_network_infos_sync` 由 `tokio::runtime::Runtime::new()`（多线程）改为 `Builder::new_current_thread().enable_all().build()`。
+   - 原因：iOS Network Extension 进程内多线程 Tokio runtime 创建失败（worker 线程受限），导致 `collect_network_infos` FFI 返回 -1、App 上报 `connectionTimeout`；实例自身 runtime 本就使用 current_thread（launcher.rs），改后与其一致。
 
 Internal 轨的 `easytier_ffi.h` 基础 ABI 必须精确为：
 
