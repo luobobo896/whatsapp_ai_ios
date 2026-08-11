@@ -69,15 +69,17 @@ enum EasyTierBridge {
     static func collectNetworkInfos(maxCount: Int) -> Result<[String: String], EasyTierFFIError> {
         #if EASYTIER_FFI_LINKED
         var infos = [ETKeyValuePair](repeating: ETKeyValuePair(), count: maxCount)
+        // collect_network_infos 返回写入的实例条数（>=0 成功，-1 失败），不是 0/非0 成功码。
         let result = collect_network_infos(&infos, maxCount)
-        guard result == EasyTierIOError.ok else { return .failure(EasyTierFFIError.message(currentErrorMessage())) }
+        guard result >= 0 else { return .failure(EasyTierFFIError.message(currentErrorMessage())) }
+        let count = Int(result)
         var dict: [String: String] = [:]
-        for index in 0..<maxCount {
+        for index in 0..<count {
             guard let key = infos[index].key, let value = infos[index].value else { break }
             dict[String(cString: key)] = String(cString: value)
         }
         // 复制后必须 free 所有由 FFI 分配的字符串（设计 6.2）。
-        for index in 0..<maxCount {
+        for index in 0..<count {
             if let key = infos[index].key { free_string(key) }
             if let value = infos[index].value { free_string(value) }
         }

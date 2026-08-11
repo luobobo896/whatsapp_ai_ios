@@ -519,6 +519,9 @@ Keychain group      $(AppIdentifierPrefix)com.whatsappai.deviceagent.shared
 4. `easytier/src/instance_manager.rs`
    - `collect_network_infos_sync` 由 `tokio::runtime::Runtime::new()`（多线程）改为 `Builder::new_current_thread().enable_all().build()`。
    - 原因：iOS Network Extension 进程内多线程 Tokio runtime 创建失败（worker 线程受限），导致 `collect_network_infos` FFI 返回 -1、App 上报 `connectionTimeout`；实例自身 runtime 本就使用 current_thread（launcher.rs），改后与其一致。
+5. `easytier/src/common/constants.rs`
+   - `EASYTIER_VERSION` 的 `git_version!` 移除 `--dirty=~`。
+   - 原因：fork 工作树恒为 dirty（补丁不入库），否则构建出的版本号带 `~` 后缀（如 `2.6.4-8428a89d~`），对外展示不干净。
 
 Internal 轨的 `easytier_ffi.h` 基础 ABI 必须精确为：
 
@@ -543,7 +546,7 @@ void free_string(const char *value);
 #endif
 ```
 
-`collect_network_infos` 返回的每个 `key`、`value` 以及 `get_error_msg` 返回的字符串都必须在 Swift 复制后调用 `free_string`；遗漏任一释放视为测试失败。
+`collect_network_infos` 返回写入的实例条数（`>=0` 成功、`-1` 失败），调用方必须按返回值（而非 `0/非0`）判断成功并只读取前 N 个 `ETKeyValuePair`；曾误判为非 0 即失败导致实例已运行却上报 `connectionTimeout`。返回的每个 `key`、`value` 以及 `get_error_msg` 返回的字符串都必须在 Swift 复制后调用 `free_string`；遗漏任一释放视为测试失败。
 
 6.2.1 的三个 `set_packet_flow_io`、`push_packet_flow_packet`、`close_packet_flow_io` 作为同一 header 的附加 ABI，使用固定 `int32_t` 错误码和 callback 签名；symbol test 必须按 target 同时核验基础 ABI 与 public bridge ABI，不能靠 Swift 私有声明绕过 header。
 
