@@ -1,59 +1,67 @@
-#!/usr/bin/env bash
-# 启动 WDA 服务器（iPhone 真机，前台常驻；Ctrl-C 停止）
-# 用法:
-#   ./scripts/start-wda.sh                       # 自动探测第一台 iPhone
-#   ./scripts/start-wda.sh --udid <UDID>         # 指定设备
-#   ./scripts/start-wda.sh --identity <SHA1>     # 钥匙串有重复证书时指定签名身份
-# 环境变量: WDA_UDID / WDA_TEAM / WDA_SIGN_IDENTITY（优先级: 参数 > 环境变量 > 自动探测）
+#!/bin/bash
+
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT="$ROOT/third_party/WebDriverAgent/WebDriverAgent.xcodeproj"
-SCHEME="WebDriverAgentRunner"
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 
-# ---- 参数解析 ----
-UDID=""; IDENTITY=""
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --udid) UDID="$2"; shift 2 ;;
-    --identity) IDENTITY="$2"; shift 2 ;;
-    -h|--help) grep '^#' "$0" | head -20; exit 0 ;;
-    *) echo "未知参数: $1"; exit 1 ;;
-  esac
-done
+WDA_DEVICE_UDID=${WDA_DEVICE_UDID:-}
+WDA_SIGNING_IDENTITY=${WDA_SIGNING_IDENTITY:-129DCD812F1D6C5E696E3F44196A179FC61788A1}
+WDA_DERIVED_DATA_PATH=${WDA_DERIVED_DATA_PATH:-/tmp/WebDriverAgentIntegrationDerived}
+WDA_LOG_PATH=${WDA_LOG_PATH:-/tmp/wda-from-integration-app.log}
 
-# ---- Team：默认取主工程已提交的 DEVELOPMENT_TEAM ----
-TEAM="${WDA_TEAM:-$(grep -m1 'DEVELOPMENT_TEAM = ' "$ROOT/WhatsAppDeviceAgent.xcodeproj/project.pbxproj" | awk '{print $3}' | tr -d ';')}"
-[ -n "$TEAM" ] || { echo "错误: 无法从主工程读取 DEVELOPMENT_TEAM"; exit 1; }
-
-# ---- UDID：参数 > 环境变量 > 自动探测（xctrace 里第一台 iPhone）----
-UDID="${WDA_UDID:-$UDID}"
-if [ -z "$UDID" ]; then
-  UDID="$(xcrun xctrace list devices 2>/dev/null | grep -i iphone | head -1 | sed -n 's/.*(\([0-9A-F]\{8\}-[0-9A-F-]\{25,36\}\))\s*$/\1/p' | tr -d ' ')"
+if [ -z "${WDA_DEVICE_UDID}" ]; then
+  WDA_DEVICE_UDID="$(xcodebuild \
+    -project "${PROJECT_ROOT}/WebDriverAgent.xcodeproj" \
+    -scheme WebDriverAgentRunner \
+    -showdestinations 2>/dev/null \
+    | sed -nE 's/.*platform:iOS,.*id:([^,}]+).*/\1/p' \
+    | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' \
+    | head -n 1)"
 fi
-[ -n "$UDID" ] || { echo "错误: 未指定 UDID（--udid 或 WDA_UDID），且未探测到 iPhone"; echo "可用设备:"; xcrun xctrace list devices 2>/dev/null | grep -i iphone; exit 1; }
-echo "设备 UDID: $UDID"
-echo "Team:      $TEAM"
-
-# ---- 签名身份：钥匙串存在同名重复证书时必须显式指定，否则后处理重签会报 ambiguous ----
-if [ -z "$IDENTITY" ]; then
-  IDENTITY="${WDA_SIGN_IDENTITY:-}"
-fi
-if [ -z "$IDENTITY" ]; then
-  # 统计同名开发证书是否重复
-  DUPS="$(security find-identity -p codesigning -v 2>/dev/null | grep -oE '"Apple Development: [^"]+"' | sort | uniq -d | head -1)"
-  if [ -n "$DUPS" ]; then
-    echo "警告: 钥匙串存在重复开发证书（$DUPS）。"
-    echo "      请用 --identity <SHA1> 指定 profile 引用的证书（security find-identity -p codesigning -v 查看）："
-    security find-identity -p codesigning -v 2>/dev/null | grep -i "Apple Development"
-    exit 1
-  fi
+if [ -z "${WDA_DEVICE_UDID}" ]; then
+  echo "Unable to discover an iPhone UDID. Set WDA_DEVICE_UDID explicitly." >&2
+  exit 1
 fi
 
-ARGS=(-project "$PROJECT" -scheme "$SCHEME" -destination "id=$UDID" -allowProvisioningUpdates)
-[ -n "$TEAM" ] && ARGS+=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic)
-[ -n "$IDENTITY" ] && ARGS+=(EXPANDED_CODE_SIGN_IDENTITY="$IDENTITY")
+RUNNER_APP="${WDA_DERIVED_DATA_PATH}/Build/Products/Debug-iphoneos/WebDriverAgentRunner-Runner.app"
+WDA_PROJECT="${PROJECT_ROOT}/WebDriverAgent.xcodeproj"
+WDA_RUNTIME_XCTESTRUN="${WDA_DERIVED_DATA_PATH}/Build/Products/WebDriverAgentRunner.runtime.xctestrun"
 
-echo "启动 WDA（前台常驻，Ctrl-C 停止）..."
-cd "$ROOT"
-exec xcodebuild "${ARGS[@]}" test
+cd "${PROJECT_ROOT}"
+
+EXPANDED_CODE_SIGN_IDENTITY="${WDA_SIGNING_IDENTITY}" \
+  xcodebuild \
+    -project "${WDA_PROJECT}" \
+    -scheme WebDriverAgentRunner \
+    -configuration Debug \
+    -destination "id=${WDA_DEVICE_UDID}" \
+    -derivedDataPath "${WDA_DERIVED_DATA_PATH}" \
+    -allowProvisioningUpdates \
+    ENABLE_DEFAULT_HEADER_SEARCH_PATHS=NO \
+    GCC_TREAT_WARNINGS_AS_ERRORS=NO \
+    'OTHER_CFLAGS=$(inherited) -Wno-error=poison-system-directories' \
+    RUN_CLANG_STATIC_ANALYZER=NO \
+    build-for-testing >> "${WDA_LOG_PATH}" 2>&1
+
+GENERATED_XCTESTRUN="$(find "${WDA_DERIVED_DATA_PATH}/Build/Products" \
+  -maxdepth 1 -name 'WebDriverAgentRunner_iphoneos*.xctestrun' \
+  -print | head -n 1)"
+if [ -z "${GENERATED_XCTESTRUN}" ]; then
+  echo "Unable to locate the generated WebDriverAgentRunner xctestrun file." >&2
+  exit 1
+fi
+
+cp -f "${GENERATED_XCTESTRUN}" "${WDA_RUNTIME_XCTESTRUN}"
+/usr/libexec/PlistBuddy \
+  -c "Delete :WebDriverAgentRunner:EnvironmentVariables:WDA_DEVICE_UDID" \
+  "${WDA_RUNTIME_XCTESTRUN}" 2>/dev/null || true
+/usr/libexec/PlistBuddy \
+  -c "Add :WebDriverAgentRunner:EnvironmentVariables:WDA_DEVICE_UDID string ${WDA_DEVICE_UDID}" \
+  "${WDA_RUNTIME_XCTESTRUN}"
+
+echo "Starting WDA with device UDID ${WDA_DEVICE_UDID}" >> "${WDA_LOG_PATH}"
+exec env EXPANDED_CODE_SIGN_IDENTITY="${WDA_SIGNING_IDENTITY}" xcodebuild \
+  -xctestrun "${WDA_RUNTIME_XCTESTRUN}" \
+  -destination "id=${WDA_DEVICE_UDID}" \
+  test-without-building \
