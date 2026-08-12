@@ -1,7 +1,9 @@
 import Foundation
 import Darwin
 
-/// 设备网络信息（WDA 直连方案：平台通过局域网 IP 访问 WebDriverAgent :8100）。
+/// 设备网络信息（WDA 直连方案：平台通过 A 局域网 IP 访问 WebDriverAgent :8100）。
+/// 组网：easytier 服务端在 A 局域网与平台互通（增加子网接入），平台经互联访问
+/// 设备的 WDA 地址（192.168.x.x:8100），不经 App 侧 WSS（设计 6.7/需求二 2.1）。
 enum DeviceNetwork {
     /// 返回当前活动网络的局域网 IPv4 地址（Wi-Fi en0 优先，其次蜂窝 pdp_ip0，最后任意 en* 接口），
     /// 排除 link-local（169.254.x.x）与回环。
