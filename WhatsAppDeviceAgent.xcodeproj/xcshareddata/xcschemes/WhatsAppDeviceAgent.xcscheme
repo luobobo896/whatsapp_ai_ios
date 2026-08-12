@@ -29,37 +29,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
       <Testables>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "1A0000000000000000000052"
-               BuildableName = "WhatsAppDeviceAgentTests.xctest"
-               BlueprintName = "WhatsAppDeviceAgentTests"
-               ReferencedContainer = "container:WhatsAppDeviceAgent.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "1A0000000000000000000053"
-               BuildableName = "PacketTunnelTests.xctest"
-               BlueprintName = "PacketTunnelTests"
-               ReferencedContainer = "container:WhatsAppDeviceAgent.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "1A0000000000000000000054"
-               BuildableName = "WhatsAppDeviceAgentUITests.xctest"
-               BlueprintName = "WhatsAppDeviceAgentUITests"
-               ReferencedContainer = "container:WhatsAppDeviceAgent.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-      </Testables>
+         </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
