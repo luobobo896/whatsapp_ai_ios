@@ -96,7 +96,7 @@ struct EnrollmentView: View {
                 }
             }
             Section {
-                Button("注册并启用 VPN") {
+                Button("注册") {
                     Task {
                         await model.enroll()
                     }

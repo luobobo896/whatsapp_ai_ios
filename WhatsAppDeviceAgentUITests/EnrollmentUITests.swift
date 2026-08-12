@@ -20,7 +20,7 @@ final class EnrollmentUITests: XCTestCase {
         app.launch()
 
         // 等待注册按钮出现且可用（onAppear 已用 launchArguments 预填表单）。
-        let registerButton = app.buttons["注册并启用 VPN"]
+        let registerButton = app.buttons["注册"]
         XCTAssertTrue(registerButton.waitForExistence(timeout: 10), "注册按钮未出现")
         let deadline = Date().addingTimeInterval(8)
         while !registerButton.isEnabled && Date() < deadline {

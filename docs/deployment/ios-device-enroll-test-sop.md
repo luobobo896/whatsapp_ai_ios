@@ -25,10 +25,9 @@
 1. 打开 `WhatsAppDeviceAgent.xcodeproj`。
 2. 选中 `WhatsAppDeviceAgent` target → Signing & Capabilities → Team 选你的 Apple ID。
    - 免费账号下 bundle id `com.whatsappai.deviceagent` 无法直接签名：把 `Configs/Base.xcconfig` 的
-     `APP_BUNDLE_ID`/`EXT_BUNDLE_ID`/`APP_GROUP_ID`/`KEYCHAIN_GROUP_ID` 成组改成你自己的前缀
-     （如 `com.<你的id>.deviceagent`，四者必须成组修改，见方案 6.1）。
-   - Network Extension 需要付费开发者账号的 entitlement；免费账号无法启用 `packet-tunnel-provider`，
-     只能先验证注册流程（注册不依赖 VPN entitlement，启动 VPN 会失败）。
+     `APP_BUNDLE_ID`/`APP_GROUP_ID`/`KEYCHAIN_GROUP_ID` 成组改成你自己的前缀
+     （如 `com.<你的id>.deviceagent`，三者必须成组修改，见方案 6.1）。
+   - Network Extension 已移除，免费 Apple ID 即可签名。
 3. Scheme 选 `WhatsAppDeviceAgent`，设备选你的 iPhone，⌘R 运行。
 4. 首次运行会请求安装；iPhone 上如提示「不受信任的开发者」，到 设置 → 通用 → VPN 与设备管理 信任该证书。
 
@@ -45,11 +44,10 @@
 1. 打开 App → 注册页：
    - 平台地址：HK 测试地址（HTTPS；开发构建允许 `http://127.0.0.1`，真机必须用 HTTPS 或 hk 域名）
    - 一次性注册码：粘贴第 3 步的 code
-2. 点「注册并启用 VPN」。
+2. 点「注册」。
 3. 成功判定：
-   - App 进入「设备状态」页，显示 设备 ID / 配置版本 / 虚拟 IP（10.168.x.y）/ 对端 hk 地址
-   - 平台 iOS 设备列表出现该设备，状态从 `pending_enrollment` → `vpn_connecting` →（组网成功后）`online`
-4. 首次保存 VPN profile 时 iOS 弹系统 VPN 配置确认，点允许（一次性）。
+   - App 进入「设备状态」页，显示 设备 ID / 配置版本 / WDA 地址（`http://<局域网IP>:8100`）
+   - 平台 iOS 设备列表出现该设备；在线判定依赖 App 前台每 20 秒的心跳上报（90s 超时窗口）
 
 ## 5. 当前阻塞点（诚实说明）
 

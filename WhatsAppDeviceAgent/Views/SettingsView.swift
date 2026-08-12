@@ -15,7 +15,6 @@ struct SettingsView: View {
                     Section("设备") {
                         LabeledContent("设备 ID", value: model.deviceIDShort)
                         LabeledContent("服务器 ID", value: config.deviceId)
-                        LabeledContent("虚拟 IP", value: config.iphoneIPv4)
                         LabeledContent("配置版本", value: "\(config.configVersion)")
                     }
                 }
@@ -38,9 +37,7 @@ struct SettingsView: View {
                     }
                 }
                 Section("关于") {
-                    LabeledContent("App 版本", value: appVersion)
-                    LabeledContent("网络", value: "wa-ios")
-                }
+                    LabeledContent("App 版本", value: appVersion)                }
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)

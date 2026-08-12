@@ -1,23 +1,24 @@
 import Foundation
 
-/// App/Extension 上报的状态快照（设计 7.2 /status、6.8 后台边界）。
+/// App 上报的状态快照（设计 7.2 /status、6.8 后台边界）。
 struct AgentStatus: Codable, Equatable {
-    /// App 主状态（enrollment_required、vpn_connecting、connected、recovery_required 等语义）。
+    /// App 主状态（enrollment_required、online、connected、recovery_required 等语义）。
     var appStatus: AgentAppStatus
-    /// 描述 VPN/隧道当前阶段，尽量使用 TunnelPhase.rawValue。
+    /// VPN/组网已移除：字段保留以兼容平台契约，固定上报 "stopped"。
     var vpnPhase: String
-    /// 虚拟 IP（如 10.168.1.5），连接后非空。
+    /// VPN/组网已移除：固定为 nil。
     var virtualIP: String?
+    /// VPN/组网已移除：固定为 0。
     var peerCount: Int
-    /// 稳定错误码（如 TUN_FD_UNAVAILABLE、EASYTIER_PACKET_BACKPRESSURE）。
+    /// VPN/组网已移除：固定为 nil。
     var lastErrorCode: String?
-    /// 最近一次 Extension 写入状态的时间戳。
+    /// VPN/组网已移除：固定为 nil。
     var extensionUpdatedAt: Date?
     /// WebDriverAgent 直连地址（`http://<局域网IP>:8100`），云平台直接访问，不依赖 VPN。
     var wdaUrl: String?
 
     init(appStatus: AgentAppStatus = .unknown,
-         vpnPhase: String = "",
+         vpnPhase: String = "stopped",
          virtualIP: String? = nil,
          peerCount: Int = 0,
          lastErrorCode: String? = nil,

@@ -26,7 +26,7 @@ struct AgentConfig: Codable, Equatable {
         case invalidServerBaseURL
     }
 
-    /// 扩展启动前必须通过校验（设计 6.4：校验失败不启动 VPN）。
+    /// 注册配置必须通过校验（设计 6.4），校验失败不进入已注册状态。
     func validate() throws {
         guard schemaVersion == Self.currentSchemaVersion else {
             throw ValidationError.unsupportedSchemaVersion(schemaVersion)

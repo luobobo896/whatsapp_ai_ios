@@ -1,6 +1,8 @@
 # iOS WhatsApp WDA 自动化群发详细设计（EasyTier 内嵌、公网 Wi-Fi/蜂窝组网）
 
 > **变更（2026-08-11）**：App 内 easytier 组件（Vendor/EasyTier、scripts 构建脚本、PacketTunnel 的 EasyTierBridge/ConfigBuilder/TunnelFileDescriptor、third_party/easytier）已整体移除。当前 PacketTunnel 为占位实现（startTunnel 明确失败、不伪在线），数据面待按官方 [EasyTier/EasyTier-iOS](https://github.com/EasyTier/EasyTier-iOS) 重新集成。本设计中与 App 内 easytier 代码相关的 4.x/6.2/6.3 章节暂不适用。
+>
+> **变更（2026-08-11 晚）**：按用户决定，VPN（PacketTunnel Extension target、VPNManager、Network Extension entitlement）已从 App 整体移除。App 数据面改为 WDA 局域网直连（`http://<局域网IP>:8100`），注册/心跳不再保存 VPN profile、不再弹「允许 VPN 配置」，也不再有 VPN 启停入口。本设计中 6.6（VPN profile 与启停）、6.5/6.8（隧道状态）等章节对当前 App 不再适用；平台 `/status` 的隧道字段（vpnPhase/virtualIP/peerCount 等）由 App 固定上报中性值以保持契约兼容。
 
 
 > **供 Claude/Codex 实施：**严格按本文里程碑和复选框顺序开发。M0 未全部通过时不得实现 M1 之后的生产功能，不得把条件可行写成已验证可行。
