@@ -11,11 +11,13 @@ struct WhatsAppDeviceAgentApp: App {
                 .environmentObject(model)
         }
         .onChange(of: scenePhase) { phase in
-            // 前台保持心跳在线；后台停止心跳（在线判定由 90s 超时窗口负责）。
+            // 前台保持心跳在线并连接平台 WSS（§6.8）；后台停心跳、发 app:suspended 后断 WSS。
             if phase == .active {
                 model.startHeartbeat()
+                model.startWebSocket()
             } else {
                 model.stopHeartbeat()
+                model.suspendWebSocket()
             }
         }
     }

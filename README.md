@@ -227,6 +227,7 @@ python3 scripts/wda_send.py --wda http://192.168.20.235:8100 \
 | GET | `/api/ios-agent/v1/config` | 拉取配置 | Bearer | 只返回非秘密字段（`networkSecret` 为空，secret 仅在 enroll 下发） |
 | POST | `/api/ios-agent/v1/status` | 心跳 / 状态上报 | Bearer | App 前台每 20 秒心跳（90s 超时窗口判离线）；隧道相关字段固定中性值；成功返回 204 |
 | POST | `/api/ios-agent/v1/token/rotate` | token 轮换 | Bearer | ⚠️ iOS 侧 `AgentAPIClient.rotateToken` 已实现，但主仓 `mobile_agent.go` **尚未注册该路由，当前调用返回 404**，契约待主仓补齐或 iOS 侧移除 |
+| GET upgrade | `/api/ios-agent/v1/ws` | WSS 长连接（设计 §6.8/§7.3） | Bearer | App 前台连接、每 20s `agent:heartbeat`，后台发 `app:suspended` 后断开；server 可下发 `server:config_changed` / `server:diagnostic_request`；关闭码 4001 token 无效 / 4002 被替换 / 4003 设备禁用 / 4004 协议非法。群发 `task:dispatch` 不在此协议 |
 
 **enroll 请求**（`EnrollRequest` / 主仓 `MobileEnrollRequest`）：
 
@@ -309,3 +310,4 @@ python3 scripts/wda_send.py --wda http://192.168.20.235:8100 \
 
 - `POST /api/ios-agent/v1/token/rotate`：iOS 侧已实现调用，主仓未注册路由 → 当前 404，待对齐。
 - `status` 上报：VPN/组网已移除，`vpnPhase` 固定 `stopped`、`virtualIP` 为 null、`peerCount` 为 0；`extensionUpdatedAt` 等隧道字段主仓未声明，解码时忽略，不影响。
+- `WSS /api/ios-agent/v1/ws`：**App 侧 `AgentWebSocket` 客户端已实现**（前台连接、20s heartbeat、后台 suspended、config_changed/diagnostic_request 处理、close code 4001/4003 处理、退避重连）；**主仓 `ws.go` 未落地**，当前连接会被拒绝/无推送，需主仓按 §7.2/§7.3 实现服务端。

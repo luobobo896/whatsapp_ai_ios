@@ -20,12 +20,15 @@ final class AppModel: ObservableObject {
     @Published var lastError: String?
 
     private let enrollmentService: EnrollmentService
+    private let webSocket: AgentWebSocket
     private let logger = RedactingLogger(category: "app-model")
     private var heartbeatTask: Task<Void, Never>?
 
     init(enrollmentService: EnrollmentService? = nil) {
         // 在 @MainActor 隔离的 init 内创建默认依赖，避免默认参数在非隔离上下文求值。
         self.enrollmentService = enrollmentService ?? EnrollmentService()
+        self.webSocket = AgentWebSocket()
+        configureWebSocket()
     }
 
     /// 设备唯一 ID 短码（sha256(installationId) 前 12 位，与平台设备列表「设备 ID」一致，一一对应）。
@@ -46,13 +49,14 @@ final class AppModel: ObservableObject {
         return false
     }
 
-    /// 启动时从 App Group 恢复已保存配置（设计 6.4 原子写保证可恢复），并启动心跳保持在线。
+    /// 启动时从 App Group 恢复已保存配置（设计 6.4 原子写保证可恢复），并启动心跳/WSS 保持在线。
     func restoreIfNeeded() {
         guard currentConfig == nil, let config = try? AppGroupStore.loadConfig() else { return }
         currentConfig = config
         phase = .enrolled
         reportStatus(.online)
         startHeartbeat()
+        startWebSocket()
     }
 
     func enroll() async {
@@ -67,6 +71,7 @@ final class AppModel: ObservableObject {
             lastError = nil
             reportStatus(.online)
             startHeartbeat()
+            startWebSocket()
         } catch {
             let message: String
             if let apiErr = error as? AgentAPIError, case .httpStatus(401) = apiErr {
@@ -131,9 +136,81 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // MARK: - WSS 长连接（设计 6.8 / 7.2 / 7.3）
+
+    /// 已注册且前台时连接平台 WSS（每 20s heartbeat；后台由 suspendWebSocket 暂停）。
+    func startWebSocket() {
+        guard isEnrolled,
+              let token = try? SharedKeychain.read(.deviceToken),
+              let config = currentConfig,
+              let url = AgentWSRoute.url(serverBaseURL: config.serverBaseURL) else { return }
+        webSocket.connect(url: url, token: token)
+    }
+
+    /// 前台转后台：发一次 app:suspended 后断开（§6.8）。
+    func suspendWebSocket() {
+        webSocket.suspend()
+    }
+
+    private func configureWebSocket() {
+        webSocket.installationID = { [weak self] in self?.enrollmentService.installationID() ?? "" }
+        webSocket.configVersion = { [weak self] in self?.currentConfig?.configVersion ?? 0 }
+        webSocket.wdaURL = { [weak self] in self?.wdaUrl }
+        webSocket.diagnosticPayload = { [weak self] in
+            AgentWSPayload(
+                configVersion: self?.currentConfig?.configVersion,
+                appStatus: "online",
+                wdaUrl: self?.wdaUrl
+            )
+        }
+        webSocket.onConfigChanged = { [weak self] version in
+            Task { [weak self] in await self?.applyRemoteConfig(configVersion: version) }
+        }
+        webSocket.onAuthFailure = { [weak self] code in
+            self?.handleWSAuthFailure(code)
+        }
+    }
+
+    /// server:config_changed -> GET /config 拉取新配置并落盘（§7.2/§7.3）。
+    private func applyRemoteConfig(configVersion: Int) async {
+        guard let config = currentConfig,
+              let token = try? SharedKeychain.read(.deviceToken),
+              let url = URL(string: config.serverBaseURL) else { return }
+        let client = AgentAPIClient(baseURL: url)
+        do {
+            let newConfig = try await client.fetchConfig(token: token)
+            try AppGroupStore.saveConfig(newConfig)
+            currentConfig = newConfig
+            lastError = nil
+            webSocket.sendStatus(payload: AgentWSPayload(
+                configVersion: newConfig.configVersion,
+                appStatus: "online",
+                wdaUrl: wdaUrl
+            ))
+        } catch {
+            logger.error("config refresh failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// WSS 鉴权类关闭（§7.3 close code）。
+    private func handleWSAuthFailure(_ code: AgentWSCloseCode) {
+        switch code {
+        case .tokenInvalid:
+            resetForReenrollment()
+            lastError = "设备已被平台移除，请重新注册。"
+        case .deviceDisabled:
+            webSocket.disconnect()
+            lastError = "设备已被平台禁用。"
+        case .replaced, .protocolError:
+            // 被新连接替换或协议错误：不打断用户，由客户端重连。
+            break
+        }
+    }
+
     /// 重新注册/退出：清除本地配置与 Keychain，返回注册页（设备被平台移除或用户主动重注册）。
     func resetForReenrollment() {
         stopHeartbeat()
+        webSocket.disconnect()
         try? SharedKeychain.delete(.deviceToken)
         try? SharedKeychain.delete(.networkSecret)
         AppGroupStore.clear()
