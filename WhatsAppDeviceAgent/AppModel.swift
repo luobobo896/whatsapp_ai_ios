@@ -50,8 +50,11 @@ final class AppModel: ObservableObject {
     }
 
     /// 启动时从 App Group 恢复已保存配置（设计 6.4 原子写保证可恢复），并启动心跳/WSS 保持在线。
+    /// 配置必须通过校验才进入已注册状态（设计 6.4：校验失败不进入已注册状态）。
     func restoreIfNeeded() {
-        guard currentConfig == nil, let config = try? AppGroupStore.loadConfig() else { return }
+        guard currentConfig == nil,
+              let config = try? AppGroupStore.loadConfig(),
+              (try? config.validate()) != nil else { return }
         currentConfig = config
         phase = .enrolled
         reportStatus(.online)

@@ -27,6 +27,7 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     var onScan: ((String) -> Void)?
     var onClose: (() -> Void)?
     private var session: AVCaptureSession?
+    private var hasScanned = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -103,8 +104,11 @@ final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputOb
     func metadataOutput(_ output: AVCaptureMetadataOutput,
                         didOutput metadataObjects: [AVMetadataObject],
                         from connection: AVCaptureConnection) {
-        guard let obj = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
+        // 一次性：stopRunning 异步生效前可能连续回调，避免重复 onScan/dismiss。
+        guard !hasScanned,
+              let obj = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
               let value = obj.stringValue else { return }
+        hasScanned = true
         session?.stopRunning()
         onScan?(value)
     }

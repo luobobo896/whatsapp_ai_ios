@@ -16,13 +16,17 @@ enum DeviceNetwork {
         var ptr = ifaddr
         while ptr != nil {
             let interface = ptr!.pointee
-            let addrFamily = interface.ifa_addr.pointee.sa_family
+            guard let addr = interface.ifa_addr else {
+                ptr = interface.ifa_next
+                continue
+            }
+            let addrFamily = addr.pointee.sa_family
             if addrFamily == UInt8(AF_INET) {
                 let name = String(cString: interface.ifa_name)
                 if name == "en0" || name == "pdp_ip0" || name.hasPrefix("en") {
                     var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    getnameinfo(interface.ifa_addr,
-                                socklen_t(interface.ifa_addr.pointee.sa_len),
+                    getnameinfo(addr,
+                                socklen_t(addr.pointee.sa_len),
                                 &host, socklen_t(host.count),
                                 nil, 0, NI_NUMERICHOST)
                     let ip = String(cString: host)

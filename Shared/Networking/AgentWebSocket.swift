@@ -198,13 +198,16 @@ final class AgentWebSocket {
         reconnectTask?.cancel()
         reconnectTask = Task { [weak self] in
             guard let self else { return }
-            for delay in Self.reconnectBackoff {
-                guard self.running, self.task == nil else { return }
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                guard self.running, self.task == nil else { return }
-                if let url = self.pendingURL, let token = self.pendingToken {
-                    self.startTask(url: url, token: token)
-                    return
+            // 前台运行期间持续退避重连，不因一轮退避结束而放弃。
+            while self.running && self.task == nil {
+                for delay in Self.reconnectBackoff {
+                    guard self.running, self.task == nil else { return }
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    guard self.running, self.task == nil else { return }
+                    if let url = self.pendingURL, let token = self.pendingToken {
+                        self.startTask(url: url, token: token)
+                        return
+                    }
                 }
             }
         }

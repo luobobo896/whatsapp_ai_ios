@@ -43,10 +43,18 @@ struct AgentAPIClient {
     let baseURL: URL
     let session: URLSession
 
-    init(baseURL: URL, session: URLSession = .shared) {
+    init(baseURL: URL, session: URLSession = AgentAPIClient.defaultSession) {
         self.baseURL = baseURL
         self.session = session
     }
+
+    /// 默认会话带显式超时：心跳 20s 一次，避免慢网络下请求无限堆积。
+    private static let defaultSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 30
+        return URLSession(configuration: config)
+    }()
 
     /// 只允许 HTTPS；开发构建额外允许 http://127.0.0.1（设计 6.7）。
     static func validateServerURL(_ string: String) -> URL? {
