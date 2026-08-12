@@ -279,6 +279,7 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
   NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
   NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
   NSString *type = json[@"type"];
+  NSLog(@"[WDAgent] WSS 收到帧: %@", type ?: @"(unknown)");
   if ([type isEqualToString:@"server:diagnostic_request"]) {
     NSString *requestID = json[@"payload"][@"requestId"];
     if (requestID.length > 0) {
