@@ -108,7 +108,7 @@ WDA 是 XCTest UI 自动化服务，能够直接执行点击。系统不会使�
 | EasyTier | `v2.6.4` / `8428a89d2dabc94c97d370ec607c6ca142473626` | 已核验 FFI、iOS mobile cfg、raw fd TUN 支持 |
 | WebDriverAgent | `v16.1.5` / `c93561a4c48c220ba630a22771ca87dd479d6663` | 已核验 `/status`、`/session`、`/url`、element、source、screenshot 路由 |
 | Rust | EasyTier 仓库 `rust-toolchain.toml` 的 `1.95` | 不使用本机默认 Rust 替代 |
-| iOS | 最低 iOS 16.4 | 固定 v1 真机矩阵，减少 WDA/深链差异 |
+| iOS | 最低 iOS 15.0 | 覆盖 15.x 用户机型（WDA 亦为 15.0） |
 | Xcode | M0 记录中的固定版本 | 必须与测试设备 iOS 和 WDA v16.1.5 实测兼容 |
 
 升级任一版本必须重新执行 M0-A、M0-B1、M0-B2、M0-C、M0-D；若交付 App Store 轨，还必须重新执行 M0-E，不允许只通过编译就升级生产。
@@ -447,7 +447,7 @@ settings.mtu = 1380
 WhatsAppDeviceAgent/
 ├── WhatsAppDeviceAgent.xcodeproj
 ├── Configs/
-│   ├── Base.xcconfig                  # iOS 16.4、Swift、统一 bundle 前缀
+│   ├── Base.xcconfig                  # iOS 15.0、Swift、统一 bundle 前缀
 │   ├── Debug.xcconfig
 │   └── Release.xcconfig
 ├── Vendor/EasyTier/
@@ -455,21 +455,20 @@ WhatsAppDeviceAgent/
 │   ├── include/easytier_ffi.h         # 人工维护、symbol test 校验
 │   ├── LICENSE-LGPL-3.0
 │   └── SOURCE_COMMIT                  # 固定 EasyTier commit
-├── Shared/
-│   ├── Models/AgentConfig.swift       # Codable 配置及严格校验
-│   ├── Models/AgentStatus.swift       # 上报状态枚举
-│   ├── Security/SharedKeychain.swift  # token/secret，App + Extension 共用
-│   ├── Storage/AppGroupStore.swift    # 非秘密配置和 extension 状态快照
-│   ├── Networking/AgentAPIClient.swift
-│   ├── Networking/AgentWebSocket.swift
-│   └── Logging/RedactingLogger.swift
-├── WhatsAppDeviceAgent/
+├── WhatsAppDeviceAgent/（含原 Shared 共用层）
 │   ├── WhatsAppDeviceAgentApp.swift
 │   ├── AppModel.swift                 # UI 状态协调，不包含 FFI
 │   ├── Enrollment/EnrollmentService.swift
 │   ├── VPN/VPNManager.swift           # NETunnelProviderManager 配置/启停
 │   ├── Views/EnrollmentView.swift
 │   ├── Views/DeviceStatusView.swift
+│   ├── Models/AgentConfig.swift       # Codable 配置及严格校验
+│   ├── Models/AgentStatus.swift       # 上报状态枚举
+│   ├── Security/SharedKeychain.swift  # token/secret 等秘密字段
+│   ├── Storage/AppGroupStore.swift    # 非秘密配置原子读写
+│   ├── Networking/AgentAPIClient.swift
+│   ├── Networking/AgentWebSocket.swift
+│   ├── Logging/RedactingLogger.swift
 │   ├── Info.plist
 │   └── WhatsAppDeviceAgent.entitlements
 ├── PacketTunnel/

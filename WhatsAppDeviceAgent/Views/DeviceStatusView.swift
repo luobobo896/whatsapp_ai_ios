@@ -8,7 +8,7 @@ struct DeviceStatusView: View {
     @State private var showSettings = false
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(spacing: 24) {
                     statusCard
@@ -28,7 +28,7 @@ struct DeviceStatusView: View {
             .navigationTitle("设备")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
                             showSettings = true

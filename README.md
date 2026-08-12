@@ -12,9 +12,8 @@ iPhone App 通过平台 `/api/ios-agent/v1` 接口完成注册/配置下发/心�
 
 ```text
 WhatsAppDeviceAgent.xcodeproj    Xcode 工程（App + 2 个测试 target）
-Configs/                        Base/Debug/Release.xcconfig（统一 bundle 前缀、iOS 16.4）
-Shared/                         App 共用：配置/状态模型、Keychain、App Group、API 客户端、脱敏日志
-WhatsAppDeviceAgent/             主 App：注册、状态页、WDA 直连地址展示、enrollment
+Configs/                        Base/Debug/Release.xcconfig（统一 bundle 前缀、iOS 15.0）
+WhatsAppDeviceAgent/             主 App（含原 Shared 共用层）：注册、状态页、WDA 直连地址展示、模型/Keychain/App Group/API 客户端/脱敏日志
 WhatsAppDeviceAgentTests/        主 App 单元测试
 WhatsAppDeviceAgentUITests/      UI 测试（真实注册 HK 平台）
 scripts/                        WDA 启动（start-wda.sh）与微信自动发送（wda_send.py）脚本
@@ -26,20 +25,9 @@ docs/                           设计 / 测试 / 部署文档
 
 #### `Configs/` — 构建设置（xcconfig）
 
-- `Base.xcconfig`：统一部署目标 iOS 16.4、Swift 5.0、bundle 前缀
+- `Base.xcconfig`：统一部署目标 iOS 15.0、Swift 5.0、bundle 前缀
   （`APP_BUNDLE_ID` / `APP_GROUP_ID` / `KEYCHAIN_GROUP_ID`）。
 - `Debug.xcconfig` / `Release.xcconfig`：仅引入 `Base.xcconfig`。
-
-#### `Shared/` — App 共用层
-
-| 文件 | 职责 |
-|------|------|
-| `Models/AgentConfig.swift` | 设备配置（非秘密字段）模型 + 校验（schemaVersion/deviceId/CIDR/IPv4/relayPort/serverBaseURL）；注册配置必须通过校验 |
-| `Models/AgentStatus.swift` | App 上报状态快照 + `AgentAppStatus` 语义枚举（online / connected / recoveryRequired / …） |
-| `Logging/RedactingLogger.swift` | 统一日志，输出前对 token/secret/注册码等敏感字段脱敏 |
-| `Networking/AgentAPIClient.swift` | 平台 `/api/ios-agent/v1` 客户端：enroll / config / status / rotateToken；仅 HTTPS（开发允许 http://127.0.0.1） |
-| `Security/SharedKeychain.swift` | 共享 Keychain，只存 `deviceToken` / `networkSecret` / `installationID`（AfterFirstUnlockThisDeviceOnly） |
-| `Storage/AppGroupStore.swift` | App Group 非秘密配置的原子读写（临时文件 + fsync + rename）；`clear()` 同时清配置与历史隧道状态 |
 
 #### `WhatsAppDeviceAgent/` — 主 App
 
@@ -52,6 +40,12 @@ docs/                           设计 / 测试 / 部署文档
 | `Views/QRScannerView.swift` | 相机扫码（`AVCaptureSession` + 元数据输出），含相机权限请求与拒绝提示 |
 | `Views/DeviceStatusView.swift` | 状态页：在线状态卡片（WDA 地址 / 设备信息）+ 重新注册菜单 |
 | `Views/SettingsView.swift` | 设置页：设备信息、服务器/注册码修改并重新注册、关于 |
+| `Models/AgentConfig.swift` | 设备配置（非秘密字段）模型 + 校验（schemaVersion/deviceId/CIDR/IPv4/relayPort/serverBaseURL）；注册配置必须通过校验 |
+| `Models/AgentStatus.swift` | App 上报状态快照 + `AgentAppStatus` 语义枚举（online / connected / recoveryRequired / …） |
+| `Logging/RedactingLogger.swift` | 统一日志，输出前对 token/secret/注册码等敏感字段脱敏 |
+| `Networking/AgentAPIClient.swift` | 平台 `/api/ios-agent/v1` 客户端：enroll / config / status / rotateToken；仅 HTTPS（开发允许 http://127.0.0.1） |
+| `Security/SharedKeychain.swift` | 共享 Keychain，只存 `deviceToken` / `networkSecret` / `installationID`（AfterFirstUnlockThisDeviceOnly） |
+| `Storage/AppGroupStore.swift` | App Group 非秘密配置的原子读写（临时文件 + fsync + rename）；`clear()` 同时清配置与历史隧道状态 |
 | `Info.plist` / `WhatsAppDeviceAgent.entitlements` | App 配置、相机权限文案、App Group / Keychain group |
 
 

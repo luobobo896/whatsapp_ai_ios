@@ -9,13 +9,13 @@ struct SettingsView: View {
     @State private var showApplyConfirm = false
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 if let config = model.currentConfig {
                     Section("设备") {
-                        LabeledContent("设备 ID", value: model.deviceIDShort)
-                        LabeledContent("服务器 ID", value: config.deviceId)
-                        LabeledContent("配置版本", value: "\(config.configVersion)")
+                        labeledRow("设备 ID", value: model.deviceIDShort)
+                        labeledRow("服务器 ID", value: config.deviceId)
+                        labeledRow("配置版本", value: "\(config.configVersion)")
                     }
                 }
                 Section("服务器与注册码") {
@@ -37,12 +37,13 @@ struct SettingsView: View {
                     }
                 }
                 Section("关于") {
-                    LabeledContent("App 版本", value: appVersion)                }
+                    labeledRow("App 版本", value: appVersion)
+                }
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { dismiss() }
                 }
             }
@@ -67,5 +68,14 @@ struct SettingsView: View {
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+    }
+
+    /// iOS 15 兼容的键值行（iOS 16+ 的 LabeledContent 在 15 不可用）。
+    private func labeledRow(_ title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value).foregroundStyle(.secondary)
+        }
     }
 }

@@ -8,7 +8,7 @@ struct EnrollmentView: View {
     @State private var scanning = false
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             if showManualForm {
                 manualForm
             } else {

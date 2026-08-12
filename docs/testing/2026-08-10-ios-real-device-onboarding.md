@@ -10,7 +10,7 @@
 | --- | --- |
 | **付费 Apple Developer Program 账号** | Network Extension（VPN）是受限 entitlement，**免费个人 Team 无法签名**。免费账号在保存 VPN profile 时会报 `IPC failed / NEConfigurationErrorDomain Code 11`。 |
 | Xcode 16+，macOS | 打开工程编译运行 |
-| iPhone 真机（iOS 16.4+） | 模拟器无 TUN 设备，**组网只能在真机验证**；模拟器注册请用手动输入注册码（无摄像头，扫码仅真机可用） |
+| iPhone 真机（iOS 15.0+） | 模拟器无 TUN 设备，**组网只能在真机验证**；模拟器注册请用手动输入注册码（无摄像头，扫码仅真机可用） |
 | 手机网络可达 HK | `https://hk.hsddns.com`（平台）与 `hk.hsddns.com:11010`（easytier UDP/TCP） |
 
 ## 2. 一次性签名配置（Xcode 内操作，约 5 分钟）
