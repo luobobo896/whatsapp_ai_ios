@@ -17,6 +17,8 @@ Shared/                         App 共用：配置/状态模型、Keychain、Ap
 WhatsAppDeviceAgent/             主 App：注册、状态页、WDA 直连地址展示、enrollment
 WhatsAppDeviceAgentTests/        主 App 单元测试
 WhatsAppDeviceAgentUITests/      UI 测试（真实注册 HK 平台）
+scripts/                        WDA 启动（start-wda.sh）与微信自动发送（wda_send.py）脚本
+third_party/WebDriverAgent/      已入库的 WDA v16.1.5（XCTest UI 自动化服务，真机由脚本拉起）
 docs/                           设计 / 测试 / 部署文档
 ```
 
@@ -114,6 +116,92 @@ rtk xcodebuild -project WhatsAppDeviceAgent.xcodeproj \
 - 测试：`docs/testing/2026-08-10-ios-real-device-onboarding.md`（真机接入 HK 测试平台）、
   （easytier 相关测试文档已随组件移除）
 - 部署：`docs/deployment/ios-device-enroll-test-sop.md`
+
+## WDA 自动化操作手册（真机）
+
+### 1. 原理与边界
+
+- **WDA 是什么**：Appium 开源的 WebDriverAgent（XCTest UI 自动化服务），已 vendored 进本仓库
+  `third_party/WebDriverAgent`（v16.1.5，提交 `186f5d1`），是仓库的一部分，不是外部依赖。
+- **为什么必须 Mac 侧启动**：iOS 系统限制，普通 App 没有安装/签名/启动 XCTest runner 的权限
+  （设计 §1.4/§8.3）。WDA 只能由 Mac 侧 `xcodebuild test` 以 XCTest 会话方式拉起，
+  **进程常驻 = WDA 服务存活**，Ctrl-C 即停止。
+- **访问方式**：`http://<手机WiFiIP>:8100`（W3C WebDriver 协议）。App 状态页的 wdaUrl
+  由 `DeviceNetwork.lanIPv4()` 生成（en0 Wi-Fi 优先），上报平台后平台据此直连。
+
+### 2. 前置条件
+
+| 项 | 要求 |
+|---|---|
+| Mac | Xcode 26.x；**Xcode SDK 版本 ≥ 手机 iOS 版本**（设备系统比 SDK 新会导致 XCTest 会话失败） |
+| Apple ID | 付费开发者账号（免费 7 天签名不满足长期运行；VPN/Network Extension 已移除，无额外 entitlement） |
+| iPhone | 开启开发者模式、解锁、屏幕常亮；与 Mac 同一 Wi-Fi；目标 App（微信等）已登录 |
+| 首次 | USB 连接并信任电脑；设置 → 通用 → VPN 与设备管理 → 信任开发者证书 |
+| 网络 | 首次授予「本地网络」权限：设置 → 隐私与安全性 → 本地网络 → 打开 WebDriverAgentRunner |
+
+### 3. 启动 WDA 服务器（自研入口）
+
+```bash
+./scripts/start-wda.sh                        # 自动探测第一台 iPhone 并启动
+./scripts/start-wda.sh --udid <UDID>          # 指定设备
+./scripts/start-wda.sh --identity <SHA1>      # 钥匙串有重复证书时，指定 profile 引用的签名身份
+```
+
+- 参数优先级：命令行 > 环境变量（`WDA_UDID` / `WDA_TEAM` / `WDA_SIGN_IDENTITY`）> 自动探测。
+- Team 默认从主工程 `project.pbxproj` 的 `DEVELOPMENT_TEAM` 读取，无需手填。
+- 脚本不把机器相关的 UDID/Team/证书写进仓库（设计 §8.2 要求本地签名配置）。
+- 启动后**前台常驻**：`curl http://<手机IP>:8100/status` 返回 `"ready": true` 即成功。
+
+等价原始命令（脚本内部就是它）：
+
+```bash
+xcodebuild -project third_party/WebDriverAgent/WebDriverAgent.xcodeproj \
+  -scheme WebDriverAgentRunner -destination 'id=<UDID>' \
+  -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=<Team> CODE_SIGN_STYLE=Automatic \
+  [EXPANDED_CODE_SIGN_IDENTITY=<SHA1>] test
+```
+
+### 4. 自动发送微信消息
+
+```bash
+python3 scripts/wda_send.py --wda http://192.168.20.235:8100 \
+  --contact "迪迦Hanson" --text "你好" [--session-id XXX] [--verbose]
+```
+
+执行流程（每步回读校验）：
+
+1. **会话**：探测 WDA 会话有效性；App 被关/会话失效时自动 `DELETE` 旧会话并重建（重新拉起微信），
+   避免「关掉 App 再开」后陈旧会话导致的失败与闪退。
+2. **进会话**：谓词 `Cell CONTAINS '<联系人>'` 直接点；列表没有则走搜索框输入并点结果。
+3. **输入**：点击输入框 → `value` 写入 → 回读 `/element/:id/text` 校验等于目标文本。
+4. **发送**：优先元素点击；iOS 18 下 WDA 键盘 frame 整体偏移时，用截图+像素聚类定位发送键真实坐标点击。
+5. **校验**：发送后输入框清空才算成功。
+
+优化点（相对手工 curl）：
+
+- 全程 `POST /element` 谓词定向查询，**不 `GET /source` 全量 dump 元素树**（微信树 ~460KB，一次约 20s，是慢的主因）；
+- 每步元素级定位 + 回读校验，不盲点；
+- 会话复用（`--session-id`），避免每次冷启动微信；
+- 会话失效自动重建重试（`--max-retry`，默认 1 次）。
+
+### 5. 常见问题排查（实测踩坑）
+
+| 现象 | 原因 | 解决 |
+|---|---|---|
+| `requires a development team` | WDA 工程未配置 Team | 用 `start-wda.sh`（自动读取主工程 Team） |
+| 签名 `ambiguous (matches ...)` | 钥匙串存在同名重复开发证书 | `security find-identity -p codesigning -v` 找出 profile 引用的证书，`--identity <SHA1>`；根治：删除重复证书 |
+| 安装报 `无法验证其完整性` | 重签身份与 profile 证书不一致 | `--identity` 必须用 profile 引用的那个证书 |
+| Runner 起来 ~18s 后 `IDE disconnection` / exit 74 | 手机 iOS 版本比 Xcode SDK 新（如 iOS 26.6 beta vs Xcode 26.3/SDK 26.2） | 升级 Xcode 或换 iOS ≤ SDK 的真机/模拟器 |
+| ping 通但 `curl :8100` 超时 | iOS「本地网络」权限未授权 | 设置 → 隐私与安全性 → 本地网络 → 允许 WebDriverAgentRunner |
+| 换 Wi-Fi 后 8100 不通 | WDA 绑定在启动时的旧 IP | 重启 WDA（重跑 `start-wda.sh`） |
+| 元素点击「发送」无反应 | iOS 18 键盘 frame 偏移 | `wda_send.py` 已用像素聚类兜底 |
+| 关 App 再开闪退/操作失败 | WDA 会话指向已终止的 App | `wda_send.py` 自动重建会话重试 |
+
+### 6. 与主 App 的关系
+
+- 主 App 只负责注册/心跳/上报 `wdaUrl`，**不启动 WDA**；WDA 由 Mac 侧脚本独立拉起。
+- 平台通过 App 上报的 `wdaUrl`（`http://<局域网IP>:8100`）直连 WDA 驱动目标 App。
 
 ## 与平台对接接口
 
