@@ -4,14 +4,14 @@
 #   ./scripts/start-wda.sh                       # 自动探测第一台 iPhone
 #   ./scripts/start-wda.sh --udid <UDID>         # 指定设备
 #   ./scripts/start-wda.sh --identity <SHA1>     # 钥匙串有重复证书时指定签名身份
-# 环境变量: WDA_UDID / WDA_TEAM / WDA_SIGN_IDENTITY（优先级: 参数 > 环境变量 > 自动探测）
+# 环境变量: WDA_TEAM（必填，Apple Team ID）/ WDA_UDID / WDA_SIGN_IDENTITY（优先级: 参数 > 环境变量 > 自动探测）
 # WhatsAppDeviceAgent（并入 WDA）:
 #   WDA_PLATFORM_URL   平台地址，默认 https://hk.hsddns.com
 #   WDA_ENROLL_CODE    一次性注册码；设置后 WDA 启动时自动注册/心跳/WSS（未设置则 WDA 保持纯净）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PROJECT="$ROOT/third_party/WebDriverAgent/WebDriverAgent.xcodeproj"
+PROJECT="$ROOT/WebDriverAgent.xcodeproj"
 SCHEME="WebDriverAgentRunner"
 
 # ---- 参数解析 ----
@@ -25,9 +25,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# ---- Team：默认取主工程已提交的 DEVELOPMENT_TEAM ----
-TEAM="${WDA_TEAM:-$(grep -m1 'DEVELOPMENT_TEAM = ' "$ROOT/WhatsAppDeviceAgent.xcodeproj/project.pbxproj" | awk '{print $3}' | tr -d ';')}"
-[ -n "$TEAM" ] || { echo "错误: 无法从主工程读取 DEVELOPMENT_TEAM"; exit 1; }
+# ---- Team：优先 WDA_TEAM 环境变量（主工程已废弃删除，不再自动读取）----
+TEAM="${WDA_TEAM:-}"
+[ -n "$TEAM" ] || { echo "错误: 未设置 WDA_TEAM（Apple Team ID，例如 WDA_TEAM=A3JP3VUZ78 ./scripts/start-wda.sh --udid ...）"; exit 1; }
 
 # ---- UDID：参数 > 环境变量 > 自动探测（xctrace 里第一台 iPhone）----
 UDID="${WDA_UDID:-$UDID}"

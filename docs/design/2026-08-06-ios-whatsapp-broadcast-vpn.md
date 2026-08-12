@@ -810,7 +810,7 @@ WSS close code：`4001` token 无效、`4002` 被新连接替换、`4003` 设备
 示例启动命令中的 Team 和 UDID 必须来自本地签名配置，不写进仓库：
 
 ```bash
-rtk xcodebuild -project third_party/WebDriverAgent/WebDriverAgent.xcodeproj \
+rtk xcodebuild -project WebDriverAgent.xcodeproj \
   -scheme WebDriverAgentRunner \
   -destination 'id=DEVICE_UDID_FROM_XCODE' \
   test
