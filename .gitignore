@@ -15,3 +15,7 @@ xcuserdata/
 .zcode/
 # MCP code-review-graph 工具数据（本地 graph.db，勿入库）
 .code-review-graph/
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json
