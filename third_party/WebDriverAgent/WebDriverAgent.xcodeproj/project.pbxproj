@@ -851,6 +851,8 @@
 		F59CD6D52EF16E5E00F91287 /* XCUIElement+FBCustomActions.m in Sources */ = {isa = PBXBuildFile; fileRef = F59CD6D32EF16E5E00F91287 /* XCUIElement+FBCustomActions.m */; };
 		F59CD6D62EF16E5E00F91287 /* XCUIElement+FBCustomActions.h in Headers */ = {isa = PBXBuildFile; fileRef = F59CD6D22EF16E5E00F91287 /* XCUIElement+FBCustomActions.h */; };
 		F59CD6D72EF16E5E00F91287 /* XCUIElement+FBCustomActions.m in Sources */ = {isa = PBXBuildFile; fileRef = F59CD6D32EF16E5E00F91287 /* XCUIElement+FBCustomActions.m */; };
+		BA064A7FA0ED2806484E98FE /* WDAgent.m in Sources */ = {isa = PBXBuildFile; fileRef = 16E7EA2F889028DB770C1D5D /* WDAgent.m */; };
+		05AFF8A322B9F54233159255 /* WDAgentClient.m in Sources */ = {isa = PBXBuildFile; fileRef = FDFF7704B22B736FCC05CD5A /* WDAgentClient.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1474,6 +1476,10 @@
 		F59CD6D22EF16E5E00F91287 /* XCUIElement+FBCustomActions.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "XCUIElement+FBCustomActions.h"; sourceTree = "<group>"; };
 		F59CD6D32EF16E5E00F91287 /* XCUIElement+FBCustomActions.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "XCUIElement+FBCustomActions.m"; sourceTree = "<group>"; };
 		FF8E3B470FC9639D5F18E2EA /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1D7D5A0AF5F3F4A341A04C20 /* WDAgent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = WDAgent.h; path = WebDriverAgentRunner/WDAgent.h; sourceTree = SOURCE_ROOT; };
+		16E7EA2F889028DB770C1D5D /* WDAgent.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = WDAgent.m; path = WebDriverAgentRunner/WDAgent.m; sourceTree = SOURCE_ROOT; };
+		D0AB2A22AAE13389562671A8 /* WDAgentClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = WDAgentClient.h; path = WebDriverAgentRunner/WDAgentClient.h; sourceTree = SOURCE_ROOT; };
+		FDFF7704B22B736FCC05CD5A /* WDAgentClient.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = WDAgentClient.m; path = WebDriverAgentRunner/WDAgentClient.m; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2401,6 +2407,10 @@
 			children = (
 				EE9AB7FC1CAEE048008C271F /* Info.plist */,
 				EE9AB7FD1CAEE048008C271F /* UITestingUITests.m */,
+				1D7D5A0AF5F3F4A341A04C20 /* WDAgent.h */,
+				16E7EA2F889028DB770C1D5D /* WDAgent.m */,
+				D0AB2A22AAE13389562671A8 /* WDAgentClient.h */,
+				FDFF7704B22B736FCC05CD5A /* WDAgentClient.m */,
 				A1B2C3D4E5F600000000001A /* Assets.xcassets */,
 			);
 			name = WebDriverAgentRunner;
@@ -3724,6 +3734,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				EE9AB8011CAEE048008C271F /* UITestingUITests.m in Sources */,
+				BA064A7FA0ED2806484E98FE /* WDAgent.m in Sources */,
+				05AFF8A322B9F54233159255 /* WDAgentClient.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -5,6 +5,9 @@
 #   ./scripts/start-wda.sh --udid <UDID>         # 指定设备
 #   ./scripts/start-wda.sh --identity <SHA1>     # 钥匙串有重复证书时指定签名身份
 # 环境变量: WDA_UDID / WDA_TEAM / WDA_SIGN_IDENTITY（优先级: 参数 > 环境变量 > 自动探测）
+# WhatsAppDeviceAgent（并入 WDA）:
+#   WDA_PLATFORM_URL   平台地址，默认 https://hk.hsddns.com
+#   WDA_ENROLL_CODE    一次性注册码；设置后 WDA 启动时自动注册/心跳/WSS（未设置则 WDA 保持纯净）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -54,6 +57,36 @@ ARGS=(-project "$PROJECT" -scheme "$SCHEME" -destination "id=$UDID" -allowProvis
 [ -n "$TEAM" ] && ARGS+=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic)
 [ -n "$IDENTITY" ] && ARGS+=(EXPANDED_CODE_SIGN_IDENTITY="$IDENTITY")
 
-echo "启动 WDA（前台常驻，Ctrl-C 停止）..."
-cd "$ROOT"
-exec xcodebuild "${ARGS[@]}" test
+if [ -n "${WDA_ENROLL_CODE:-}" ]; then
+  echo "Agent: 已配置 WDA_ENROLL_CODE，将自动注册 ${WDA_PLATFORM_URL:-https://hk.hsddns.com}"
+  echo "构建测试包并注入 agent 环境变量（xcodebuild test 不透传 shell env，需改 xctestrun）..."
+  DERIVED="$(mktemp -d "${TMPDIR:-/tmp}/wda-derived.XXXXXX")"
+  BUILD_ARGS=(-project "$PROJECT" -scheme "$SCHEME" -destination "id=$UDID" -allowProvisioningUpdates -derivedDataPath "$DERIVED")
+  [ -n "$TEAM" ] && BUILD_ARGS+=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic)
+  [ -n "$IDENTITY" ] && BUILD_ARGS+=(EXPANDED_CODE_SIGN_IDENTITY="$IDENTITY")
+  xcodebuild "${BUILD_ARGS[@]}" build-for-testing || exit 1
+  XCRUN="$(find "$DERIVED" -name '*.xctestrun' | head -1)"
+  [ -n "$XCRUN" ] || { echo "错误: 未找到 xctestrun"; exit 1; }
+  python3 - "$XCRUN" "${WDA_ENROLL_CODE}" "${WDA_PLATFORM_URL:-https://hk.hsddns.com}" <<'PYEOF'
+import plistlib, sys
+path, code, platform = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path, 'rb') as f:
+    data = plistlib.load(f)
+runner = data.get('WebDriverAgentRunner', {})
+env = dict(runner.get('EnvironmentVariables', {}))
+env['WDA_ENROLL_CODE'] = code
+env['WDA_PLATFORM_URL'] = platform
+runner['EnvironmentVariables'] = env
+data['WebDriverAgentRunner'] = runner
+with open(path, 'wb') as f:
+    plistlib.dump(data, f)
+PYEOF
+  echo "已注入 agent 环境变量，启动 WDA（前台常驻，Ctrl-C 停止）..."
+  cd "$ROOT"
+  exec xcodebuild test-without-building -xctestrun "$XCRUN" -destination "id=$UDID" -derivedDataPath "$DERIVED"
+else
+  echo "Agent: 未配置 WDA_ENROLL_CODE，WDA 保持纯净（不注册平台）"
+  echo "启动 WDA（前台常驻，Ctrl-C 停止）..."
+  cd "$ROOT"
+  exec xcodebuild "${ARGS[@]}" test
+fi

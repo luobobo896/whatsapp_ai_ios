@@ -13,6 +13,7 @@
 #import <WebDriverAgentLib/FBFailureProofTestCase.h>
 #import <WebDriverAgentLib/FBWebServer.h>
 #import <WebDriverAgentLib/XCTestCase.h>
+#import "WDAgent.h"
 
 @interface UITestingUITests : FBFailureProofTestCase <FBWebServerDelegate>
 @end
@@ -34,6 +35,14 @@
     [FBConfiguration enableScreenshots];
   } else {
     [FBConfiguration disableScreenshots];
+  }
+  // WhatsAppDeviceAgent：配置了 WDA_ENROLL_CODE 时在后台启动注册/心跳/WSS（未配置则保持 WDA 纯净）。
+  NSLog(@"[WDAgent] setUp env: code=%@ platform=%@ count=%lu",
+        NSProcessInfo.processInfo.environment[@"WDA_ENROLL_CODE"] ?: @"(nil)",
+        NSProcessInfo.processInfo.environment[@"WDA_PLATFORM_URL"] ?: @"(nil)",
+        (unsigned long)NSProcessInfo.processInfo.environment.count);
+  if (NSProcessInfo.processInfo.environment[@"WDA_ENROLL_CODE"].length > 0) {
+    [WDAgent.sharedAgent startWithEnvironment:NSProcessInfo.processInfo.environment];
   }
   [super setUp];
 }
