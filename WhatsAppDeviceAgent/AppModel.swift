@@ -166,34 +166,8 @@ final class AppModel: ObservableObject {
                 wdaUrl: self?.wdaUrl
             )
         }
-        webSocket.onConfigChanged = { [weak self] version in
-            Task { [weak self] in await self?.applyRemoteConfig(configVersion: version) }
-        }
         webSocket.onAuthFailure = { [weak self] code in
             self?.handleWSAuthFailure(code)
-        }
-    }
-
-    /// server:config_changed -> GET /config 拉取新配置并落盘（§7.2/§7.3）。
-    private func applyRemoteConfig(configVersion: Int) async {
-        guard let config = currentConfig,
-              let token = try? SharedKeychain.read(.deviceToken),
-              let url = URL(string: config.serverBaseURL) else { return }
-        let client = AgentAPIClient(baseURL: url)
-        do {
-            let newConfig = try await client.fetchConfig(token: token)
-            // 设计 6.4：配置必须通过校验才落盘/应用；校验失败保留旧配置，等待下次补推。
-            try newConfig.validate()
-            try AppGroupStore.saveConfig(newConfig)
-            currentConfig = newConfig
-            lastError = nil
-            webSocket.sendStatus(payload: AgentWSPayload(
-                configVersion: newConfig.configVersion,
-                appStatus: "online",
-                wdaUrl: wdaUrl
-            ))
-        } catch {
-            logger.error("config refresh failed: \(error.localizedDescription)")
         }
     }
 

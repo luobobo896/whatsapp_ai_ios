@@ -81,31 +81,6 @@ struct AgentAPIClient {
         }
     }
 
-    /// GET /config 只返回非秘密字段；App 补充自己的 serverBaseURL（设计 7.2）。
-    func fetchConfig(token: String) async throws -> AgentConfig {
-        let url = baseURL.appendingPathComponent("api/ios-agent/v1/config")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let data = try await perform(urlRequest)
-        do {
-            let remote = try JSONDecoder().decode(RemoteAgentConfig.self, from: data)
-            return AgentConfig(
-                schemaVersion: remote.schemaVersion,
-                configVersion: remote.configVersion,
-                deviceId: remote.deviceId,
-                networkName: remote.networkName,
-                networkCIDR: remote.networkCIDR,
-                iphoneIPv4: remote.iphoneIPv4,
-                relayHost: remote.relayHost,
-                relayPort: remote.relayPort,
-                serverBaseURL: baseURL.absoluteString,
-                updatedAt: Date()
-            )
-        } catch {
-            throw AgentAPIError.decodingFailed
-        }
-    }
-
     func reportStatus(token: String, status: AgentStatus) async throws {
         let url = baseURL.appendingPathComponent("api/ios-agent/v1/status")
         var urlRequest = URLRequest(url: url)
@@ -125,15 +100,4 @@ struct AgentAPIClient {
         return data
     }
 
-    /// 远端 config 响应（不含 serverBaseURL）。
-    private struct RemoteAgentConfig: Decodable {
-        var schemaVersion: Int
-        var configVersion: Int
-        var deviceId: String
-        var networkName: String
-        var networkCIDR: String
-        var iphoneIPv4: String
-        var relayHost: String
-        var relayPort: Int
-    }
 }

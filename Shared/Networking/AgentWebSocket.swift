@@ -31,8 +31,6 @@ final class AgentWebSocket {
     var wdaURL: () -> String? = { nil }
     var diagnosticPayload: () -> AgentWSPayload = { AgentWSPayload() }
 
-    /// 平台下发配置版本变更（App 随后 GET /config）。
-    var onConfigChanged: ((Int) -> Void)?
     /// 平台诊断请求 requestId。
     var onDiagnosticRequest: ((String) -> Void)?
     /// 鉴权类关闭（4001 token 无效 / 4003 设备禁用）。
@@ -157,10 +155,6 @@ final class AgentWebSocket {
         switch env.type {
         case .ack:
             break
-        case .configChanged:
-            if let v = env.payload.configVersion {
-                onConfigChanged?(v)
-            }
         case .diagnosticRequest:
             if let rid = env.payload.requestId {
                 var p = diagnosticPayload()
@@ -172,8 +166,8 @@ final class AgentWebSocket {
             if let reason = env.payload.reason {
                 logger.info("WSS server:disconnect: \(reason)")
             }
-        case .hello, .heartbeat, .status, .suspended:
-            break // 服务器不应下发这些类型，忽略
+        case .hello, .heartbeat, .status, .suspended, .configChanged:
+            break // 服务器不应下发这些类型（config_changed 已废弃），忽略
         }
     }
 
