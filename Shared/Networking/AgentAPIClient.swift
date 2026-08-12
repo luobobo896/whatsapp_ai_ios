@@ -116,18 +116,6 @@ struct AgentAPIClient {
         _ = try await perform(urlRequest)
     }
 
-    func rotateToken(token: String) async throws -> String {
-        let url = baseURL.appendingPathComponent("api/ios-agent/v1/token/rotate")
-        var urlRequest = URLRequest(url: url)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let data = try await perform(urlRequest)
-        struct RotateResponse: Decodable { var deviceToken: String }
-        guard let response = try? JSONDecoder().decode(RotateResponse.self, from: data) else {
-            throw AgentAPIError.decodingFailed
-        }
-        return response.deviceToken
-    }
 
     private func perform(_ urlRequest: URLRequest) async throws -> Data {
         let (data, response) = try await session.data(for: urlRequest)

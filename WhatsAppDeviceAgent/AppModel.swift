@@ -182,6 +182,8 @@ final class AppModel: ObservableObject {
         let client = AgentAPIClient(baseURL: url)
         do {
             let newConfig = try await client.fetchConfig(token: token)
+            // 设计 6.4：配置必须通过校验才落盘/应用；校验失败保留旧配置，等待下次补推。
+            try newConfig.validate()
             try AppGroupStore.saveConfig(newConfig)
             currentConfig = newConfig
             lastError = nil
