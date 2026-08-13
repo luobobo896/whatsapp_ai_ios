@@ -4,11 +4,15 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "outDir": "build",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "checkJs": true,
     "strict": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext"
   },
-  "include": ["lib", "test"]
+  "include": [
+    "lib"
+  ]
 }

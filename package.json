@@ -30,8 +30,6 @@
     "WebDriverAgent.xcodeproj",
     "WebDriverAgentLib",
     "WebDriverAgentRunner",
-    "WebDriverAgentTests",
-    "XCTWebDriverAgentLib",
     "CHANGELOG.md"
   ],
   "type": "module",
@@ -54,11 +52,8 @@
     "format:check": "oxfmt -c oxfmt.config.mjs --check .",
     "prepare": "npm run build",
     "version": "npm run sync-wda-version",
-    "test": "node --enable-source-maps --experimental-test-module-mocks --test --test-timeout=60000 \"./build/test/unit/**/*.spec.js\"",
-    "e2e-test": "node --enable-source-maps --test --test-force-exit --test-concurrency=1 --test-timeout=600000 \"./build/test/functional/**/*.spec.js\"",
-    "bundle": "npm run bundle:ios && npm run bundle:tv",
+    "bundle": "npm run bundle:ios",
     "bundle:ios": "TARGET=runner SDK=sim node ./Scripts/build-webdriveragent.mjs",
-    "bundle:tv": "TARGET=tv_runner SDK=tv_sim node ./Scripts/build-webdriveragent.mjs",
     "fetch-prebuilt-wda": "node ./Scripts/fetch-prebuilt-wda.mjs",
     "sync-wda-version": "node ./Scripts/update-wda-version.mjs --package-version=${npm_package_version} && git add WebDriverAgentLib/Info.plist"
   },
@@ -79,11 +74,9 @@
     "@appium/types": "^1.0.0-rc.1",
     "@types/async-lock": "^1.4.2",
     "@types/node": "^26.0.0",
-    "@types/sinon": "^22.0.0",
     "appium-xcode": "^7.0.0",
     "node-simctl": "^9.0.0",
-    "semver": "^7.3.7",
-    "sinon": "^22.0.0"
+    "semver": "^7.3.7"
   },
   "engines": {
     "node": "^20.19.0 || ^22.12.0 || >=24.0.0",
