@@ -5,41 +5,42 @@ set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 
-WDA_DEVICE_UDID=${WDA_DEVICE_UDID:-}
-# 上报给 App/注册接口的真机 UDID（与 xcodebuild 目标 UDID 分开）。
-# 自动获取当前 USB 连接设备的 UDID（ioreg 的 UsbAppleDeviceUDID，40 位经典格式）。
-if [ -z "${WDA_REPORTED_UDID:-}" ]; then
-  WDA_REPORTED_UDID="$(ioreg -p IOUSB -l -w0 2>/dev/null \
-    | sed -nE 's/.*"UsbAppleDeviceUDID" = "([0-9A-Fa-f]{40})".*/\1/p' \
-    | head -n 1)"
-fi
-# 兜底：xctrace 中 40 位经典格式 UDID 的设备
-if [ -z "${WDA_REPORTED_UDID:-}" ]; then
-  WDA_REPORTED_UDID="$(xcrun xctrace list devices 2>/dev/null \
-    | grep -oE '\([0-9A-Fa-f]{40}\)' | tr -d '()' | head -n 1)"
-fi
-if [ -z "${WDA_REPORTED_UDID:-}" ]; then
-  echo "Unable to discover the USB-connected device UDID. Set WDA_REPORTED_UDID explicitly." >&2
+# 签名身份：自动从钥匙串挑选第一个未吊销的 Apple Development 证书
+# （旧的 129DCD81... 已失效，不再硬编码）。
+WDA_SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+  | grep -v CSSMERR_TP_CERT_REVOKED \
+  | awk '/Apple Development/ {print $2; exit}')"
+if [ -z "${WDA_SIGNING_IDENTITY}" ]; then
+  echo "No valid Apple Development signing identity found in keychain." >&2
   exit 1
 fi
-echo "Discovered USB device UDID: ${WDA_REPORTED_UDID}" >&2
-WDA_SIGNING_IDENTITY=${WDA_SIGNING_IDENTITY:-129DCD812F1D6C5E696E3F44196A179FC61788A1}
+echo "Using signing identity: ${WDA_SIGNING_IDENTITY}" >&2
 WDA_DERIVED_DATA_PATH=${WDA_DERIVED_DATA_PATH:-/tmp/WebDriverAgentIntegrationDerived}
 WDA_LOG_PATH=${WDA_LOG_PATH:-/tmp/wda-from-integration-app.log}
 
+# 每次只接入一台手机：UDID 全自动从 USB 获取（ioreg 的 UsbAppleDeviceUDID，40 位经典格式），
+# 无需环境变量或参数。
+WDA_DEVICE_UDID="$(ioreg -p IOUSB -l -w0 2>/dev/null \
+  | sed -nE 's/.*"UsbAppleDeviceUDID" = "([0-9A-Fa-f]{40})".*/\1/p' \
+  | head -n 1)"
+# 兜底：xcodebuild 可用目标里的 40 位真机 UDID（排除 "Any iOS Device" 占位符）。
 if [ -z "${WDA_DEVICE_UDID}" ]; then
   WDA_DEVICE_UDID="$(xcodebuild \
     -project "${PROJECT_ROOT}/WebDriverAgent.xcodeproj" \
     -scheme WebDriverAgentRunner \
     -showdestinations 2>/dev/null \
-    | sed -nE 's/.*platform:iOS,.*id:([^,}]+).*/\1/p' \
-    | sed -E 's/^[[:space:]]+|[[:space:]]+$//g' \
+    | sed -nE 's/.*platform:iOS, id:([0-9A-Fa-f]{40}).*/\1/p' \
     | head -n 1)"
 fi
 if [ -z "${WDA_DEVICE_UDID}" ]; then
-  echo "Unable to discover an iPhone UDID. Set WDA_DEVICE_UDID explicitly." >&2
+  echo "未发现 USB 连接的真机 UDID：请确认 iPhone 已连接、解锁并信任此电脑。" >&2
   exit 1
 fi
+echo "目标设备 UDID: ${WDA_DEVICE_UDID}" >&2
+
+# 上报 UDID 与目标机一致（同一台手机，无需单独配置）。
+WDA_REPORTED_UDID="${WDA_DEVICE_UDID}"
+echo "上报设备 UDID: ${WDA_REPORTED_UDID}" >&2
 
 RUNNER_APP="${WDA_DERIVED_DATA_PATH}/Build/Products/Debug-iphoneos/WebDriverAgentRunner-Runner.app"
 WDA_PROJECT="${PROJECT_ROOT}/WebDriverAgent.xcodeproj"
