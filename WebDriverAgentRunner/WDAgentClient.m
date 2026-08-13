@@ -6,12 +6,18 @@ static NSTimeInterval const kHeartbeatInterval = 20.0;
 static NSString *const kKeychainService = @"com.whatsappai.deviceagent.wda";
 static NSString *const kKeychainAccountToken = @"deviceToken";
 
-static NSArray<NSNumber *> *kReconnectBackoff(void)
+static NSArray<NSNumber *> *kBackoff(void)
 {
   return @[@1, @2, @4, @8, @16, @30];
 }
 
-@interface WDAgentClient ()
+/// 服务端下发的 WSS 关闭码：永久性失败，不应自动重连。
+static BOOL kIsTerminalCloseCode(NSURLSessionWebSocketCloseCode code)
+{
+  return code == 4001 || code == 4002 || code == 4003 || code == 4004;
+}
+
+@interface WDAgentClient () <NSURLSessionWebSocketDelegate>
 @property(nonatomic, copy) NSString *platformURL;
 @property(nonatomic, copy) NSString *enrollmentCode;
 @property(nonatomic, copy) NSString *installationID;
@@ -21,13 +27,16 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
 @property(nonatomic, copy, nullable) NSString *wdaURL;
 @property(nonatomic, copy, nullable) WDAgentEnrollCompletion completion;
 @property(nonatomic, strong) NSURLSession *session;
+@property(nonatomic, strong) NSOperationQueue *sessionQueue;
 @property(nonatomic, strong, nullable) NSString *deviceToken;
+@property(nonatomic, assign) NSInteger configVersion;
 @property(nonatomic, assign) BOOL heartbeatStarted;
 @property(nonatomic, assign) BOOL heartbeatStopped;
 @property(nonatomic, strong, nullable) NSURLSessionWebSocketTask *webSocketTask;
 @property(nonatomic, assign) BOOL wsRunning;
 @property(nonatomic, assign) BOOL manualClose;
 @property(nonatomic, assign) NSUInteger wsReconnectIndex;
+@property(nonatomic, assign) NSUInteger enrollRetryIndex;
 @property(nonatomic, assign) NSInteger msgCounter;
 @property(nonatomic, strong) dispatch_queue_t queue;
 @end
@@ -39,10 +48,15 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
   self = [super init];
   if (self) {
     _queue = dispatch_queue_create("com.whatsappai.wda.agent", DISPATCH_QUEUE_SERIAL);
+    _sessionQueue = [[NSOperationQueue alloc] init];
+    _sessionQueue.name = @"com.whatsappai.wda.agent.session";
+    _sessionQueue.maxConcurrentOperationCount = 1;
     NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
     config.timeoutIntervalForRequest = 15;
     config.timeoutIntervalForResource = 30;
-    _session = [NSURLSession sessionWithConfiguration:config];
+    _session = [NSURLSession sessionWithConfiguration:config
+                                             delegate:self
+                                        delegateQueue:_sessionQueue];
   }
   return self;
 }
@@ -69,19 +83,62 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
 
 - (void)stop
 {
-  self.wsRunning = NO;
-  self.manualClose = YES;
-  [self.webSocketTask cancelWithCloseCode:NSURLSessionWebSocketCloseCodeNormalClosure reason:nil];
-  self.webSocketTask = nil;
-  self.heartbeatStopped = YES;
-  self.completion = nil;
+  NSURLSessionWebSocketTask *task = nil;
+  @synchronized(self) {
+    self.wsRunning = NO;
+    self.manualClose = YES;
+    self.heartbeatStopped = YES;
+    task = self.webSocketTask;
+    self.webSocketTask = nil;
+    self.completion = nil;
+  }
+  if (task != nil) {
+    [task cancelWithCloseCode:NSURLSessionWebSocketCloseCodeNormalClosure reason:nil];
+  }
 }
 
 // MARK: - 注册
 
+- (NSURL *)apiURLForPath:(NSString *)path
+{
+  NSString *base = self.platformURL;
+  while ([base hasSuffix:@"/"]) {
+    base = [base substringToIndex:base.length - 1];
+  }
+  return [NSURL URLWithString:[base stringByAppendingString:path]];
+}
+
+- (NSArray<NSString *> *)provisionedDeviceUDIDs
+{
+  // 普通 API 读不到真实 UDID；开发/Ad Hoc 签名包的 embedded.mobileprovision
+  // 含 ProvisionedDevices，解析后上报平台（单设备 profile 时唯一）。
+  NSString *path = [[NSBundle mainBundle] pathForResource:@"embedded" ofType:@"mobileprovision"];
+  if (path.length == 0) {
+    return @[];
+  }
+  NSData *data = [NSData dataWithContentsOfFile:path];
+  if (data.length == 0) {
+    return @[];
+  }
+  NSString *profile = [[NSString alloc] initWithData:data encoding:NSASCIIStringEncoding];
+  if (profile.length == 0) {
+    return @[];
+  }
+  NSRange start = [profile rangeOfString:@"<plist"];
+  NSRange end = [profile rangeOfString:@"</plist>"];
+  if (start.location == NSNotFound || end.location == NSNotFound || end.location < start.location) {
+    return @[];
+  }
+  NSRange plistRange = NSMakeRange(start.location, end.location + end.length - start.location);
+  NSData *plistData = [[profile substringWithRange:plistRange] dataUsingEncoding:NSUTF8StringEncoding];
+  NSDictionary *plist = [NSPropertyListSerialization propertyListWithData:plistData options:0 format:NULL error:NULL];
+  NSArray *devices = plist[@"ProvisionedDevices"];
+  return [devices isKindOfClass:[NSArray class]] ? devices : @[];
+}
+
 - (void)enroll
 {
-  NSURL *url = [NSURL URLWithString:[self.platformURL stringByAppendingString:@"/api/ios-agent/v1/enroll"]];
+  NSURL *url = [self apiURLForPath:@"/api/ios-agent/v1/enroll"];
   NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
   request.HTTPMethod = @"POST";
   [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
@@ -93,7 +150,7 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
     @"deviceModel": self.deviceModel ?: @"",
     @"locale": self.locale ?: @"",
     @"platform": @"ios",
-    @"deviceUdids": @[],
+    @"deviceUdids": [self provisionedDeviceUDIDs],
   };
   request.HTTPBody = [NSJSONSerialization dataWithJSONObject:body options:0 error:NULL];
 
@@ -104,10 +161,16 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
       return;
     }
     NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
-    if (error || http.statusCode / 100 != 2) {
-      NSError *err = error ?: [NSError errorWithDomain:@"WDAgentClient"
-                                                  code:http.statusCode
-                                              userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"enroll HTTP %ld", (long)http.statusCode]}];
+    NSInteger status = http ? http.statusCode : 0;
+    // 网络错误 / 5xx / 429 视为瞬时失败，退避重试；4xx（除 429）为永久失败。
+    if (error != nil || status >= 500 || status == 429) {
+      [strongSelf scheduleEnrollRetry];
+      return;
+    }
+    if (status / 100 != 2) {
+      NSError *err = [NSError errorWithDomain:@"WDAgentClient"
+                                         code:status
+                                     userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"enroll HTTP %ld", (long)status]}];
       [strongSelf finishEnrollWithError:err];
       return;
     }
@@ -121,7 +184,10 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
                                                         userInfo:@{NSLocalizedDescriptionKey: @"enroll 响应缺少 deviceId/deviceToken"}]];
       return;
     }
-    strongSelf.deviceToken = token;
+    @synchronized(strongSelf) {
+      strongSelf.deviceToken = token;
+      strongSelf.configVersion = configVersion;
+    }
     [strongSelf saveToken:token];
     [strongSelf startHeartbeat];
     [strongSelf startWebSocket];
@@ -132,6 +198,27 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
     }
   }];
   [task resume];
+}
+
+- (void)scheduleEnrollRetry
+{
+  NSArray<NSNumber *> *backoff = kBackoff();
+  @synchronized(self) {
+    if (self.completion == nil) {
+      return;
+    }
+    NSUInteger index = MIN(self.enrollRetryIndex, backoff.count - 1);
+    self.enrollRetryIndex += 1;
+    NSTimeInterval delay = backoff[index].doubleValue;
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), self.queue, ^{
+      WDAgentClient *strongSelf = weakSelf;
+      if (!strongSelf || strongSelf.completion == nil) {
+        return;
+      }
+      [strongSelf enroll];
+    });
+  }
 }
 
 - (void)finishEnrollWithError:(NSError *)error
@@ -147,24 +234,33 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
 
 - (void)startHeartbeat
 {
-  if (self.heartbeatStarted) {
-    return;
+  @synchronized(self) {
+    if (self.heartbeatStarted) {
+      return;
+    }
+    self.heartbeatStarted = YES;
+    self.heartbeatStopped = NO;
   }
-  self.heartbeatStarted = YES;
-  self.heartbeatStopped = NO;
   [self scheduleNextHeartbeat];
 }
 
 - (void)scheduleNextHeartbeat
 {
-  if (self.heartbeatStopped) {
-    return;
+  @synchronized(self) {
+    if (self.heartbeatStopped) {
+      return;
+    }
   }
   __weak typeof(self) weakSelf = self;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kHeartbeatInterval * NSEC_PER_SEC)), self.queue, ^{
     WDAgentClient *strongSelf = weakSelf;
-    if (!strongSelf || strongSelf.heartbeatStopped) {
+    if (!strongSelf) {
       return;
+    }
+    @synchronized(strongSelf) {
+      if (strongSelf.heartbeatStopped) {
+        return;
+      }
     }
     [strongSelf reportStatus];
     [strongSelf sendWSHeartbeat];
@@ -174,14 +270,18 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
 
 - (void)reportStatus
 {
-  if (self.deviceToken.length == 0) {
+  NSString *token = nil;
+  @synchronized(self) {
+    token = self.deviceToken;
+  }
+  if (token.length == 0) {
     return;
   }
-  NSURL *url = [NSURL URLWithString:[self.platformURL stringByAppendingString:@"/api/ios-agent/v1/status"]];
+  NSURL *url = [self apiURLForPath:@"/api/ios-agent/v1/status"];
   NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
   request.HTTPMethod = @"POST";
   [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
-  [request setValue:[NSString stringWithFormat:@"Bearer %@", self.deviceToken] forHTTPHeaderField:@"Authorization"];
+  [request setValue:[NSString stringWithFormat:@"Bearer %@", token] forHTTPHeaderField:@"Authorization"];
   request.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{
     @"appStatus": @"online",
     @"vpnPhase": @"stopped",
@@ -199,9 +299,18 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
       return;
     }
     NSHTTPURLResponse *http = (NSHTTPURLResponse *)response;
-    if (http.statusCode == 401) {
-      NSLog(@"[WDAgent] 心跳 401：token 失效，停止 agent");
+    NSInteger status = http ? http.statusCode : 0;
+    if (error != nil) {
+      NSLog(@"[WDAgent] 心跳上报网络错误: %@", error.localizedDescription);
+      return;
+    }
+    if (status == 401) {
+      NSLog(@"[WDAgent] 心跳 401：token 失效，停止 agent（需重新提供注册码启动）");
       [strongSelf stop];
+      return;
+    }
+    if (status / 100 != 2) {
+      NSLog(@"[WDAgent] 心跳上报失败 HTTP %ld", (long)status);
     }
   }];
   [task resume];
@@ -211,38 +320,47 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
 
 - (void)startWebSocket
 {
-  if (self.webSocketTask) {
-    return;
-  }
-  NSURLComponents *components = [NSURLComponents componentsWithString:self.platformURL];
-  if ([components.scheme isEqualToString:@"https"]) {
-    components.scheme = @"wss";
-  } else if ([components.scheme isEqualToString:@"http"]) {
-    components.scheme = @"ws";
-  } else {
-    return;
-  }
-  components.path = @"/api/ios-agent/v1/ws";
-  NSURL *wsURL = components.URL;
-  if (wsURL == nil) {
-    return;
-  }
-  NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:wsURL];
-  [request setValue:[NSString stringWithFormat:@"Bearer %@", self.deviceToken] forHTTPHeaderField:@"Authorization"];
+  NSURLSessionWebSocketTask *task = nil;
+  NSInteger configVersion = 0;
+  @synchronized(self) {
+    if (self.webSocketTask != nil || self.deviceToken.length == 0) {
+      return;
+    }
+    NSURLComponents *components = [NSURLComponents componentsWithString:self.platformURL];
+    if ([components.scheme isEqualToString:@"https"]) {
+      components.scheme = @"wss";
+    } else if ([components.scheme isEqualToString:@"http"]) {
+      components.scheme = @"ws";
+    } else {
+      return;
+    }
+    NSString *basePath = components.path ?: @"";
+    if ([basePath hasSuffix:@"/"]) {
+      basePath = [basePath substringToIndex:basePath.length - 1];
+    }
+    components.path = [basePath stringByAppendingString:@"/api/ios-agent/v1/ws"];
+    NSURL *wsURL = components.URL;
+    if (wsURL == nil) {
+      return;
+    }
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:wsURL];
+    [request setValue:[NSString stringWithFormat:@"Bearer %@", self.deviceToken] forHTTPHeaderField:@"Authorization"];
 
-  NSURLSessionWebSocketTask *task = [self.session webSocketTaskWithRequest:request];
-  self.webSocketTask = task;
-  self.wsRunning = YES;
-  self.manualClose = NO;
+    task = [self.session webSocketTaskWithRequest:request];
+    self.webSocketTask = task;
+    self.wsRunning = YES;
+    self.manualClose = NO;
+    self.wsReconnectIndex = 0;
+    configVersion = self.configVersion;
+  }
+
   [task resume];
-  self.wsReconnectIndex = 0;
-
   [self sendFrameType:@"agent:hello" payload:@{
     @"app": @"WhatsAppDeviceAgent",
     @"os": self.osVersion ?: @"",
     @"model": self.deviceModel ?: @"",
     @"locale": self.locale ?: @"",
-    @"configVersion": @1,
+    @"configVersion": @(configVersion),
   }];
   [self receiveLoop:task];
 }
@@ -256,8 +374,14 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
       return;
     }
     if (error) {
-      if (strongSelf.wsRunning && !strongSelf.manualClose) {
-        strongSelf.webSocketTask = nil;
+      BOOL shouldReconnect = NO;
+      @synchronized(strongSelf) {
+        if (strongSelf.wsRunning && !strongSelf.manualClose && strongSelf.webSocketTask == task) {
+          strongSelf.webSocketTask = nil;
+          shouldReconnect = YES;
+        }
+      }
+      if (shouldReconnect) {
         [strongSelf reconnect];
       }
       return;
@@ -265,10 +389,45 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
     if (message.type == NSURLSessionWebSocketMessageTypeString) {
       [strongSelf handleFrame:message.string];
     }
-    if (strongSelf.wsRunning) {
-      [strongSelf receiveLoop:task];
+    @synchronized(strongSelf) {
+      if (strongSelf.wsRunning) {
+        [strongSelf receiveLoop:task];
+      }
     }
   }];
+}
+
+- (void)URLSession:(NSURLSession *)session
+      webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask
+ didCloseWithCode:(NSURLSessionWebSocketCloseCode)closeCode
+             reason:(NSData *)reason
+{
+  BOOL shouldStop = NO;
+  BOOL shouldReconnect = NO;
+  @synchronized(self) {
+    if (webSocketTask != self.webSocketTask) {
+      return;
+    }
+    self.webSocketTask = nil;
+    if (self.manualClose) {
+      return;
+    }
+    if (!self.wsRunning) {
+      return;
+    }
+    if (kIsTerminalCloseCode(closeCode)) {
+      self.wsRunning = NO;
+      self.manualClose = YES;
+      shouldStop = YES;
+    } else {
+      shouldReconnect = YES;
+    }
+  }
+  if (shouldStop) {
+    NSLog(@"[WDAgent] WSS 被服务端永久关闭 code=%ld，停止重连", (long)closeCode);
+  } else if (shouldReconnect) {
+    [self reconnect];
+  }
 }
 
 - (void)handleFrame:(nullable NSString *)text
@@ -283,8 +442,12 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
   if ([type isEqualToString:@"server:diagnostic_request"]) {
     NSString *requestID = json[@"payload"][@"requestId"];
     if (requestID.length > 0) {
+      NSInteger configVersion = 0;
+      @synchronized(self) {
+        configVersion = self.configVersion;
+      }
       [self sendFrameType:@"agent:status" payload:@{
-        @"configVersion": @1,
+        @"configVersion": @(configVersion),
         @"appStatus": @"online",
         @"wdaUrl": self.wdaURL ?: @"",
         @"requestId": requestID,
@@ -296,17 +459,23 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
 
 - (void)reconnect
 {
-  NSArray<NSNumber *> *backoff = kReconnectBackoff();
-  NSUInteger index = MIN(self.wsReconnectIndex, backoff.count - 1);
-  self.wsReconnectIndex += 1;
-  __weak typeof(self) weakSelf = self;
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(backoff[index].doubleValue * NSEC_PER_SEC)), self.queue, ^{
-    WDAgentClient *strongSelf = weakSelf;
-    if (!strongSelf || !strongSelf.wsRunning || strongSelf.manualClose || strongSelf.webSocketTask) {
+  NSArray<NSNumber *> *backoff = kBackoff();
+  @synchronized(self) {
+    if (!self.wsRunning || self.manualClose || self.webSocketTask != nil) {
       return;
     }
-    [strongSelf startWebSocket];
-  });
+    NSUInteger index = MIN(self.wsReconnectIndex, backoff.count - 1);
+    self.wsReconnectIndex += 1;
+    NSTimeInterval delay = backoff[index].doubleValue;
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), self.queue, ^{
+      WDAgentClient *strongSelf = weakSelf;
+      if (!strongSelf) {
+        return;
+      }
+      [strongSelf startWebSocket];
+    });
+  }
 }
 
 - (void)sendWSHeartbeat
@@ -322,15 +491,20 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
 
 - (void)sendFrameType:(NSString *)type payload:(NSDictionary *)payload
 {
-  NSURLSessionWebSocketTask *task = self.webSocketTask;
-  if (!task) {
-    return;
+  NSURLSessionWebSocketTask *task = nil;
+  NSString *msgId = nil;
+  @synchronized(self) {
+    task = self.webSocketTask;
+    if (task == nil) {
+      return;
+    }
+    self.msgCounter += 1;
+    msgId = [NSString stringWithFormat:@"%@:%ld", self.installationID, (long)self.msgCounter];
   }
-  self.msgCounter += 1;
   NSDictionary *envelope = @{
     @"v": @1,
     @"type": type,
-    @"msgId": [NSString stringWithFormat:@"%@:%ld", self.installationID, (long)self.msgCounter],
+    @"msgId": msgId,
     @"sentAt": [self iso8601Now],
     @"payload": payload ?: @{},
   };
@@ -373,7 +547,12 @@ static NSArray<NSNumber *> *kReconnectBackoff(void)
   if (status == errSecItemNotFound) {
     NSMutableDictionary *add = [query mutableCopy];
     [add addEntriesFromDictionary:attributes];
-    SecItemAdd((__bridge CFDictionaryRef)add, NULL);
+    OSStatus addStatus = SecItemAdd((__bridge CFDictionaryRef)add, NULL);
+    if (addStatus != errSecSuccess) {
+      NSLog(@"[WDAgent] 保存 token 到 Keychain 失败: %d", (int)addStatus);
+    }
+  } else if (status != errSecSuccess) {
+    NSLog(@"[WDAgent] 更新 Keychain token 失败: %d", (int)status);
   }
 }
 

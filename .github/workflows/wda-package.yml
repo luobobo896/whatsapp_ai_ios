@@ -37,7 +37,7 @@ jobs:
         with:
           xcode-version: "${{ env.XCODE_VERSION }}"
       - name: Create a zip file of WebDriverAgentRunner-Runner.app for iOS
-        run: sh $GITHUB_WORKSPACE/Scripts/ci/build-real.sh
+        run: sh $GITHUB_WORKSPACE/scripts/ci/build-real.sh
         env:
           DERIVED_DATA_PATH: appium_wda_ios
           SCHEME: WebDriverAgentRunner
@@ -46,7 +46,7 @@ jobs:
           ZIP_PKG_NAME: "${{ env.ZIP_PKG_NAME_IOS }}"
 
       - name: Create a zip file of WebDriverAgentRunner-Runner.app for tvOS
-        run: sh $GITHUB_WORKSPACE/Scripts/ci/build-real.sh
+        run: sh $GITHUB_WORKSPACE/scripts/ci/build-real.sh
         env:
           DERIVED_DATA_PATH: appium_wda_tvos
           SCHEME: WebDriverAgentRunner_tvOS
@@ -93,7 +93,7 @@ jobs:
           xcode-version: "${{ env.XCODE_VERSION }}"
       - name: Create a zip of WebDriverAgentRunner${{ matrix.target }} for simulator for ${{ matrix.arch }}
         run: |
-          DESTINATION=$DESTINATION_SIM${{ matrix.target }} sh $GITHUB_WORKSPACE/Scripts/ci/build-sim.sh
+          DESTINATION=$DESTINATION_SIM${{ matrix.target }} sh $GITHUB_WORKSPACE/scripts/ci/build-sim.sh
         env:
           SCHEME: WebDriverAgentRunner${{ matrix.target }}
           ARCHS: ${{ matrix.arch }}

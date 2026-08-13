@@ -1,30 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-WDA 微信自动发送脚本（优化版）
+"""通用 WDA（WebDriverAgent）HTTP 客户端，供微信/WhatsApp 自动化脚本复用。
 
-针对实测问题优化：
-1. 慢：不再 GET /source 全量 dump 元素树（微信树 ~460KB，一次约 20s），
-   全部改用 POST /session/:id/element 谓词定向查询 + 元素文本回读校验。
-2. 不准：元素级定位（type+name+visible+enabled 谓词），每步回读校验；
-   发送键在 iOS 18 下 WDA 上报的键盘 frame 整体偏移，因此用截图+像素聚类
-   定位发送键实心块的真实坐标（仅此一步用坐标，其余全部走元素）。
-3. 闪退/会话失效：App 被关、WDA 会话失效时自动 DELETE 会话重建（重新拉起
-   微信）并整流程重试一次，不再因陈旧会话导致失败或表现异常。
-
-用法:
-  python3 scripts/wda_send.py --wda http://192.168.20.235:8100 \
-      --contact "迪迦Hanson" --text "你好"
-可选:
-  --session-id XXX   复用已有 WDA 会话（加速；无效会自动重建）
-  --scale N          截图像素/逻辑点 比例（默认自动: 截图宽/393）
-  --max-retry N      会话重建后重试次数（默认 1）
-  --verbose          打印每步耗时
-
-依赖: Python3 标准库; 发送键像素定位需要 Pillow（无则退回元素点击并告警）。
+只封装 W3C WebDriver + WDA 私有端点的基础操作，不含任何具体 App 的业务流程。
 """
 
-import argparse
 import base64
 import io
 import json
@@ -33,7 +13,15 @@ import time
 import urllib.error
 import urllib.request
 
-WECHAT_BUNDLE = "com.tencent.xin"
+
+def predicate_literal(value):
+    """把用户输入安全地放进 NSPredicate 字符串字面量。
+
+    WDA 用 NSPredicate predicateWithFormat: 解析谓词，字符串既不能破坏引号，
+    也不能含未转义的 %（会被当作格式化占位符）。
+    """
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("%", "%%")
+    return '"' + escaped + '"'
 
 
 class WDAError(Exception):
@@ -53,6 +41,7 @@ class WDAClient:
         self.session_id = None
         self.scale = None  # 截图像素 / 逻辑点
         self._send_key_pt = None  # 缓存的发送键坐标（逻辑点）
+        self._win_size = None  # 缓存的逻辑窗口尺寸 (width, height)
 
     # ---------- 基础 HTTP ----------
     def _request(self, method, path, body=None):
@@ -123,6 +112,15 @@ class WDAClient:
         except WDAError:
             return False
 
+    # ---------- 打开深链 / URL ----------
+    def open_url(self, url, bundle_id=None, idle_timeout_ms=3000):
+        """用 WDA /url 打开深链，可指定目标 App；深链可预填文本。"""
+        body = {"url": url, "idleTimeoutMs": idle_timeout_ms}
+        if bundle_id:
+            body["bundleId"] = bundle_id
+        status, payload = self._request("POST", self._session_path("/url"), body)
+        self._raise_if_error(status, payload)
+
     # ---------- 元素操作 ----------
     def find(self, predicate, typ=None):
         """谓词查元素，返回 ELEMENT id 或 None。"""
@@ -140,6 +138,42 @@ class WDAClient:
         if isinstance(v, dict):
             return v.get("ELEMENT") or v.get("element-6066-11e4-a52e-4f735466cecf")
         return None
+
+    def find_all(self, predicate, typ=None):
+        """谓词查多个元素，返回 ELEMENT id 列表（找不到返回空列表）。"""
+        p = predicate
+        if typ:
+            p = f"type == '{typ}' AND {p}"
+        status, payload = self._request("POST", self._session_path("/elements"),
+                                        {"using": "predicate string", "value": p})
+        if status == 404:
+            return []
+        if status >= 400:
+            self._raise_if_error(status, payload)
+        v = payload.get("value")
+        if not isinstance(v, list):
+            return []
+        out = []
+        for item in v:
+            if isinstance(item, dict):
+                eid = item.get("ELEMENT") or item.get("element-6066-11e4-a52e-4f735466cecf")
+                if eid:
+                    out.append(eid)
+        return out
+
+    def _logical_window_size(self):
+        """返回逻辑窗口 (width, height)；失败返回 (None, None)，并缓存。"""
+        if self._win_size is None:
+            status, payload = self._request("GET", self._session_path("/window/size"))
+            self._raise_if_error(status, payload)
+            v = payload.get("value") or {}
+            w = v.get("width")
+            h = v.get("height")
+            if isinstance(w, (int, float)) and isinstance(h, (int, float)) and w > 0:
+                self._win_size = (float(w), float(h))
+            else:
+                self._win_size = (None, None)
+        return self._win_size
 
     def click_element(self, eid):
         status, payload = self._request("POST", self._session_path(f"/element/{eid}/click"), {})
@@ -171,7 +205,7 @@ class WDAClient:
         self._raise_if_error(status, payload)
 
     def tap(self, x, y):
-        """W3C pointer 点击（本版 WDA 不支持 /tap、/keys）。"""
+        """W3C pointer 点击。"""
         status, payload = self._request("POST", self._session_path("/actions"), {
             "actions": [{"type": "pointer", "id": "finger1",
                          "parameters": {"pointerType": "touch"},
@@ -189,20 +223,20 @@ class WDAClient:
 
     # ---------- 发送键定位（像素聚类） ----------
     def locate_send_key(self):
-        """定位键盘'发送'键中心（逻辑点）。优先缓存。"""
+        """定位键盘/输入区右侧的发送键中心（逻辑点）。优先缓存。"""
         if self._send_key_pt:
             return self._send_key_pt
         try:
             from PIL import Image
         except ImportError:
-            print("警告: 未安装 Pillow，发送键退回元素点击（iOS18 键盘 frame 偏移可能点不准）",
-                  file=sys.stderr)
+            print("警告: 未安装 Pillow，发送键退回元素点击（可能点不准）", file=sys.stderr)
             return None
         png = self.screenshot_bytes()
         im = Image.open(io.BytesIO(png)).convert("RGB")
         w, h = im.size
         if not self.scale:
-            self.scale = w / 393.0  # 竖屏 393pt 宽
+            lw, _ = self._logical_window_size()
+            self.scale = (w / lw) if lw else (w / 393.0)  # 逻辑宽未知时兜底 393pt
         px = im.load()
 
         def is_send(r, g, b):
@@ -210,7 +244,7 @@ class WDAClient:
             orange = r > 190 and 90 < g < 200 and b < 130 and r > g + 30
             return green or orange
 
-        # 键盘区域：底部 32%，右侧 55%
+        # 底部 32%、右侧 55% 区域
         x0, y0 = int(w * 0.45), int(h * 0.68)
         cells = {}
         for y in range(y0, h, 2):
@@ -226,32 +260,22 @@ class WDAClient:
         self._send_key_pt = pt
         return pt
 
-    # ---------- 业务流程 ----------
-    def open_chat(self, contact):
-        """从聊天列表进入会话；找不到则走搜索。"""
-        cell = self.find(f"name CONTAINS '{contact}' AND visible == true", "XCUIElementTypeCell")
-        if cell:
-            self.click_element(cell)
-            return
-        # 搜索流程
-        sf = self.find("name == '搜索' AND visible == true", "XCUIElementTypeSearchField")
-        if not sf:
-            raise WDAError("找不到搜索框，且聊天列表无目标会话")
-        self.click_element(sf)
-        time.sleep(1)
-        self.set_value(sf, contact)
-        for _ in range(10):
-            time.sleep(1)
-            hit = self.find(f"name CONTAINS '{contact}' AND visible == true", "XCUIElementTypeCell")
-            if hit:
-                self.click_element(hit)
-                return
-        raise WDAError(f"搜索 '{contact}' 无结果")
+    # ---------- 输入框 / 发送 ----------
+    def find_input(self):
+        """定位输入框（多个 TextView 时优先取最靠底部者）。"""
+        cands = self.find_all("visible == true AND enabled == true", "XCUIElementTypeTextView")
+        best, best_y = None, -1.0
+        for eid in cands:
+            frame = self.element_frame(eid)
+            y = frame[1] if frame else -1.0
+            if y > best_y:
+                best_y, best = y, eid
+        return best
 
     def wait_input(self, tries=8, interval=1.0):
-        """等聊天输入框出现并返回元素 id。"""
+        """等输入框出现并返回元素 id。"""
         for _ in range(tries):
-            tv = self.find("type == 'XCUIElementTypeTextView' AND visible == true AND enabled == true")
+            tv = self.find_input()
             if tv:
                 return tv
             time.sleep(interval)
@@ -261,7 +285,6 @@ class WDAClient:
         self.click_element(tv)
         time.sleep(0.8)
         self.set_value(tv, text)
-        # 回读校验
         for _ in range(5):
             got = self.element_text(tv)
             if got == text:
@@ -269,13 +292,15 @@ class WDAClient:
             time.sleep(0.5)
         raise WDAError(f"输入校验失败: 期望 {text!r} 实际 {got!r}")
 
-    def press_send(self, tv):
-        """发送：元素优先，frame 异常(键盘偏移)则像素定位+坐标点击。"""
-        btn = self.find("name == '发送' AND visible == true", "XCUIElementTypeButton")
+    def press_send(self, send_label="发送"):
+        """发送：按 label 找按钮；frame 异常时像素定位兜底。"""
+        btn = self.find(
+            f"name == {predicate_literal(send_label)} AND visible == true",
+            "XCUIElementTypeButton")
         if btn:
             frame = self.element_frame(btn)
-            # iOS18 键盘 frame 整体偏移：y 落在键盘区下半才可信
-            if frame and frame[1] > 400:
+            _, lh = self._logical_window_size()
+            if frame and lh and frame[1] > lh * 0.5:
                 self.click_element(btn)
                 return
         pt = self.locate_send_key()
@@ -285,65 +310,11 @@ class WDAClient:
         if btn:
             self.click_element(btn)  # 兜底
             return
-        raise WDAError("找不到发送键")
+        raise WDAError(f"找不到发送键（label={send_label}）")
 
-    def send(self, contact, text, max_retry=1):
-        last = None
-        for attempt in range(max_retry + 1):
-            try:
-                if not self.alive():
-                    self.create_session(WECHAT_BUNDLE)
-                if self.verbose:
-                    print(f"会话 {self.session_id}", file=sys.stderr)
-                self.open_chat(contact)
-                tv = self.wait_input()
-                if not tv:
-                    raise WDAError("输入框未出现")
-                self.type_and_verify(tv, text)
-                self.press_send(tv)
-                # 校验发送成功：输入框清空
-                for _ in range(8):
-                    if self.element_text(tv) == "":
-                        return True
-                    time.sleep(0.5)
-                raise WDAError("发送后输入框未清空")
-            except WDAError as e:
-                last = e
-                if e.session_invalid and attempt < max_retry:
-                    print(f"会话失效，重建会话重试: {e}", file=sys.stderr)
-                    try:
-                        if self.session_id:
-                            self._request("DELETE", f"/session/{self.session_id}")
-                    except Exception:
-                        pass
-                    self.session_id = None
-                    continue
-                raise
-        raise last
-
-
-def main():
-    ap = argparse.ArgumentParser(description="WDA 微信自动发送")
-    ap.add_argument("--wda", required=True, help="WDA 地址，如 http://192.168.20.235:8100")
-    ap.add_argument("--contact", required=True, help="联系人/群名，如 迪迦Hanson")
-    ap.add_argument("--text", required=True, help="消息内容，如 你好")
-    ap.add_argument("--session-id", default=None)
-    ap.add_argument("--scale", type=float, default=None)
-    ap.add_argument("--max-retry", type=int, default=1)
-    ap.add_argument("--verbose", action="store_true")
-    args = ap.parse_args()
-
-    client = WDAClient(args.wda, verbose=args.verbose)
-    client.scale = args.scale
-    if args.session_id:
-        client.session_id = args.session_id
-
-    t0 = time.time()
-    ok = client.send(args.contact, args.text, max_retry=args.max_retry)
-    print(f"OK 已发送 -> {args.contact}: {args.text}  总耗时 {time.time()-t0:.1f}s"
-          + (f"  会话 {client.session_id}" if client.session_id else ""))
-    sys.exit(0 if ok else 1)
-
-
-if __name__ == "__main__":
-    main()
+    def _input_cleared(self):
+        """重新定位输入框并确认已清空（发送成功信号）。"""
+        tv = self.find_input()
+        if tv is None:
+            return False
+        return self.element_text(tv) == ""

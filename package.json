@@ -22,9 +22,9 @@
   "files": [
     "lib",
     "build/lib",
-    "Scripts/build.sh",
-    "Scripts/embed-runner-icon.sh",
-    "Scripts/*.mjs",
+    "scripts/build.sh",
+    "scripts/embed-runner-icon.sh",
+    "scripts/*.mjs",
     "Configurations",
     "PrivateHeaders",
     "WebDriverAgent.xcodeproj",
@@ -57,10 +57,10 @@
     "test": "node --enable-source-maps --experimental-test-module-mocks --test --test-timeout=60000 \"./build/test/unit/**/*.spec.js\"",
     "e2e-test": "node --enable-source-maps --test --test-force-exit --test-concurrency=1 --test-timeout=600000 \"./build/test/functional/**/*.spec.js\"",
     "bundle": "npm run bundle:ios && npm run bundle:tv",
-    "bundle:ios": "TARGET=runner SDK=sim node ./Scripts/build-webdriveragent.mjs",
-    "bundle:tv": "TARGET=tv_runner SDK=tv_sim node ./Scripts/build-webdriveragent.mjs",
-    "fetch-prebuilt-wda": "node ./Scripts/fetch-prebuilt-wda.mjs",
-    "sync-wda-version": "node ./Scripts/update-wda-version.mjs --package-version=${npm_package_version} && git add WebDriverAgentLib/Info.plist"
+    "bundle:ios": "TARGET=runner SDK=sim node ./scripts/build-webdriveragent.mjs",
+    "bundle:tv": "TARGET=tv_runner SDK=tv_sim node ./scripts/build-webdriveragent.mjs",
+    "fetch-prebuilt-wda": "node ./scripts/fetch-prebuilt-wda.mjs",
+    "sync-wda-version": "node ./scripts/update-wda-version.mjs --package-version=${npm_package_version} && git add WebDriverAgentLib/Info.plist"
   },
   "dependencies": {
     "@appium/base-driver": "^10.3.0",

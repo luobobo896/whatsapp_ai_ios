@@ -8,8 +8,6 @@
 #import <sys/socket.h>
 
 static NSString *const kDefaultsInstallationID = @"wdagent.installationID";
-static NSString *const kDefaultsDeviceID = @"wdagent.deviceId";
-static NSString *const kDefaultsConfigVersion = @"wdagent.configVersion";
 
 @interface WDAgent ()
 @property(nonatomic, copy) NSString *platformURL;
@@ -54,26 +52,20 @@ static NSString *const kDefaultsConfigVersion = @"wdagent.configVersion";
   self.installationID = installation;
   self.started = YES;
 
-  self.client = [[WDAgentClient alloc] init];
-  __weak typeof(self) weakSelf = self;
-  [self.client startWithPlatformURL:self.platformURL
-                        enrollCode:self.enrollmentCode
-                   installationID:self.installationID
-                        osVersion:[UIDevice currentDevice].systemVersion
-                     deviceModel:[UIDevice currentDevice].model
-                          locale:[NSLocale currentLocale].localeIdentifier
-                          wdaURL:[self wdaURL]
-                      completion:^(NSString *_Nullable deviceID, NSInteger configVersion, NSError *_Nullable error) {
+  WDAgentClient *client = [[WDAgentClient alloc] init];
+  self.client = client;
+  [client startWithPlatformURL:self.platformURL
+                    enrollCode:self.enrollmentCode
+               installationID:self.installationID
+                    osVersion:[UIDevice currentDevice].systemVersion
+                 deviceModel:[UIDevice currentDevice].model
+                      locale:[NSLocale currentLocale].localeIdentifier
+                      wdaURL:[self wdaURL]
+                  completion:^(NSString *_Nullable deviceID, NSInteger configVersion, NSError *_Nullable error) {
     if (error) {
       NSLog(@"[WDAgent] 注册失败: %@", error.localizedDescription);
       return;
     }
-    WDAgent *strongSelf = weakSelf;
-    if (!strongSelf) {
-      return;
-    }
-    [[NSUserDefaults standardUserDefaults] setObject:deviceID forKey:kDefaultsDeviceID];
-    [[NSUserDefaults standardUserDefaults] setInteger:configVersion forKey:kDefaultsConfigVersion];
     NSLog(@"[WDAgent] 注册成功 deviceId=%@ configVersion=%ld", deviceID, (long)configVersion);
   }];
   return YES;
@@ -82,6 +74,8 @@ static NSString *const kDefaultsConfigVersion = @"wdagent.configVersion";
 - (void)stop
 {
   [self.client stop];
+  self.client = nil;
+  self.started = NO;
 }
 
 // MARK: - 本地持久化

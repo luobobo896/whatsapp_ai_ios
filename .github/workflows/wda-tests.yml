@@ -119,7 +119,7 @@ jobs:
         with:
           xcode_version: ${{ matrix.config.xcode_version }}
       - name: Build
-        run: ./Scripts/build.sh
+        run: ./scripts/build.sh
         env:
           ACTION: ${{ matrix.config.action }}
           TARGET: ${{ matrix.config.target }}
@@ -146,7 +146,7 @@ jobs:
         with:
           xcode_version: ${{ matrix.config.xcode_version }}
       - name: Analyze
-        run: ./Scripts/build.sh
+        run: ./scripts/build.sh
         env:
           ACTION: analyze
           TARGET: ${{ matrix.config.target }}
@@ -171,7 +171,7 @@ jobs:
         with:
           xcode_version: ${{ matrix.config.xcode_version }}
       - name: Run unit tests
-        run: ./Scripts/build.sh
+        run: ./scripts/build.sh
         env:
           ACTION: unit_test
           DEST: iphone
@@ -208,7 +208,7 @@ jobs:
       # - name: Finalize iOS simulator boot
       #   run: xcrun --sdk iphonesimulator --show-sdk-version
       - name: Run integration test
-        run: ./Scripts/build.sh
+        run: ./scripts/build.sh
         env:
           ACTION: ${{ matrix.config.action }}
           DEST: ${{ matrix.config.dest }}

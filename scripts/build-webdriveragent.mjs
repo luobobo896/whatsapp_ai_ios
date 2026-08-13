@@ -51,7 +51,7 @@ async function buildWebDriverAgent(xcodeVersion) {
 
   // Clean and build
   try {
-    await exec('/bin/bash', ['./Scripts/build.sh'], {
+    await exec('/bin/bash', ['./scripts/build.sh'], {
       env: {TARGET: target, SDK: sdk, DERIVED_DATA_PATH},
       cwd: ROOT_DIR,
     });

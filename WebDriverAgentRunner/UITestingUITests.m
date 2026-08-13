@@ -37,8 +37,11 @@
     [FBConfiguration disableScreenshots];
   }
   // WhatsAppDeviceAgent：配置了 WDA_ENROLL_CODE 时在后台启动注册/心跳/WSS（未配置则保持 WDA 纯净）。
+  // 注册码为敏感一次性凭证，日志只打印脱敏前缀，避免泄露到设备/系统日志。
+  NSString *rawCode = NSProcessInfo.processInfo.environment[@"WDA_ENROLL_CODE"];
+  NSString *maskedCode = rawCode.length > 4 ? [NSString stringWithFormat:@"%@***", [rawCode substringToIndex:4]] : @"(nil/短码)";
   NSLog(@"[WDAgent] setUp env: code=%@ platform=%@ count=%lu",
-        NSProcessInfo.processInfo.environment[@"WDA_ENROLL_CODE"] ?: @"(nil)",
+        maskedCode,
         NSProcessInfo.processInfo.environment[@"WDA_PLATFORM_URL"] ?: @"(nil)",
         (unsigned long)NSProcessInfo.processInfo.environment.count);
   if (NSProcessInfo.processInfo.environment[@"WDA_ENROLL_CODE"].length > 0) {

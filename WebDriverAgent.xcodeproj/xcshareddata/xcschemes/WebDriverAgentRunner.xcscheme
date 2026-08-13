@@ -10,7 +10,7 @@
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
                title = "Embed app icon into Runner.app"
-               scriptText = "&quot;${SRCROOT}/Scripts/embed-runner-icon.sh&quot;&#10;">
+               scriptText = "&quot;${SRCROOT}/scripts/embed-runner-icon.sh&quot;&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"

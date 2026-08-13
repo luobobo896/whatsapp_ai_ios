@@ -69,7 +69,7 @@ jobs:
           export WD="${{ matrix.config.wd }}"
           export ZIP_PKG_NAME="${{ matrix.config.zip_name }}"
           export ARCHS="${{ matrix.config.archs || '' }}"
-          sh $GITHUB_WORKSPACE/Scripts/ci/${{ matrix.config.build_script }}
+          sh $GITHUB_WORKSPACE/scripts/ci/${{ matrix.config.build_script }}
     - name: Upload artifact
       uses: actions/upload-artifact@v7
       with:
