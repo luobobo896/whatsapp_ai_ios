@@ -32,7 +32,6 @@
 #import "XCUIElement+FBTyping.h"
 #import "XCUIElement+FBUtilities.h"
 #import "XCUIElement+FBWebDriverAttributes.h"
-#import "XCUIElement+FBTVFocuse.h"
 #import "XCUIElement+FBResolve.h"
 #import "XCUIElement+FBUID.h"
 #import "FBElementTypeTransformer.h"
@@ -70,10 +69,6 @@
     [[FBRoute GET:@"/screenshot/:uuid"] respondWithTarget:self action:@selector(handleElementScreenshot:)],
     [[FBRoute GET:@"/wda/element/:uuid/accessible"] respondWithTarget:self action:@selector(handleGetAccessible:)],
     [[FBRoute GET:@"/wda/element/:uuid/accessibilityContainer"] respondWithTarget:self action:@selector(handleGetIsAccessibilityContainer:)],
-#if TARGET_OS_TV
-    [[FBRoute GET:@"/element/:uuid/attribute/focused"] respondWithTarget:self action:@selector(handleGetFocused:)],
-    [[FBRoute POST:@"/wda/element/:uuid/focuse"] respondWithTarget:self action:@selector(handleFocuse:)],
-#else
     [[FBRoute POST:@"/wda/element/:uuid/swipe"] respondWithTarget:self action:@selector(handleSwipe:)],
     [[FBRoute POST:@"/wda/swipe"] respondWithTarget:self action:@selector(handleSwipe:)],
 
@@ -115,7 +110,6 @@
     [[FBRoute POST:@"/wda/tap"] respondWithTarget:self action:@selector(handleTap:)],
 
     [[FBRoute POST:@"/wda/pickerwheel/:uuid/select"] respondWithTarget:self action:@selector(handleWheelSelect:)],
-#endif
     [[FBRoute POST:@"/wda/keys"] respondWithTarget:self action:@selector(handleKeys:)],
   ];
 }
@@ -205,12 +199,10 @@
     ? [value componentsJoinedByString:@""]
     : value;
   XCUIElementType elementType = [element elementType];
-#if !TARGET_OS_TV
   if (elementType == XCUIElementTypePickerWheel) {
     [element adjustToPickerWheelValue:textToType];
     return FBResponseWithOK();
   }
-#endif
   if (elementType == XCUIElementTypeSlider) {
     CGFloat sliderValue = textToType.floatValue;
     if (sliderValue < 0.0 || sliderValue > 1.0 ) {
@@ -241,11 +233,6 @@
   XCUIElement *element = [elementCache elementForUUID:(NSString *)request.parameters[@"uuid"] checkStaleness:YES];
 #if TARGET_OS_IOS
   [element tap];
-#elif TARGET_OS_TV
-  NSError *error = nil;
-  if (![element fb_selectWithError:&error]) {
-    return FBResponseWithStatus([FBCommandStatus invalidElementStateErrorWithMessage:error.description traceback:nil]);
-  }
 #endif
   return FBResponseWithOK();
 }
@@ -261,40 +248,6 @@
   return FBResponseWithOK();
 }
 
-#if TARGET_OS_TV
-+ (id<FBResponsePayload>)handleGetFocused:(FBRouteRequest *)request
-{
-  // `BOOL isFocused = [elementCache elementForUUID:request.parameters[@"uuid"]];`
-  // returns wrong true/false after moving focus by key up/down, for example.
-  // Thus, ensure the focus compares the status with `fb_focusedElement`.
-  BOOL isFocused = NO;
-  XCUIElement *focusedElement = request.session.activeApplication.fb_focusedElement;
-  if (focusedElement != nil) {
-    FBElementCache *elementCache = request.session.elementCache;
-    BOOL useNativeCachingStrategy = request.session.useNativeCachingStrategy;
-    NSString *focusedUUID = [elementCache storeElement:(useNativeCachingStrategy
-                                                        ? focusedElement
-                                                        : [focusedElement fb_stableInstanceWithUid:focusedElement.fb_uid])];
-    focusedElement.lastSnapshot = nil;
-    if (focusedUUID && [focusedUUID isEqualToString:(id)request.parameters[@"uuid"]]) {
-      isFocused = YES;
-    }
-  }
-
-  return FBResponseWithObject(@(isFocused));
-}
-
-+ (id<FBResponsePayload>)handleFocuse:(FBRouteRequest *)request
-{
-  FBElementCache *elementCache = request.session.elementCache;
-  XCUIElement *element = [elementCache elementForUUID:(NSString *)request.parameters[@"uuid"]];
-  NSError *error;
-  if (![element fb_setFocusWithError:&error]) {
-    return FBResponseWithStatus([FBCommandStatus invalidElementStateErrorWithMessage:error.description traceback:nil]);
-  }
-  return FBResponseWithStatus([FBCommandStatus okWithValue: FBDictionaryResponseWithElement(element, FBConfiguration.shouldUseCompactResponses)]);
-}
-#else
 + (id<FBResponsePayload>)handleDoubleTap:(FBRouteRequest *)request
 {
   NSError *error;
@@ -515,7 +468,6 @@
     : FBResponseWithStatus([FBCommandStatus invalidElementStateErrorWithMessage:error.description
                                                                     traceback:nil]);
 }
-#endif
 
 + (id<FBResponsePayload>)handleKeys:(FBRouteRequest *)request
 {
@@ -534,11 +486,7 @@
   XCUIApplication *app = request.session.activeApplication ?: XCUIApplication.fb_activeApplication;
 
   CGRect frame = app.wdFrame;
-#if TARGET_OS_TV
-  CGSize screenSize = frame.size;
-#else
   CGSize screenSize = FBAdjustDimensionsForApplication(frame.size, app.interfaceOrientation);
-#endif
   return FBResponseWithObject(@{
     @"width": @(screenSize.width),
     @"height": @(screenSize.height),
@@ -551,11 +499,7 @@
   XCUIApplication *app = request.session.activeApplication ?: XCUIApplication.fb_activeApplication;
 
   CGRect frame = app.wdFrame;
-#if TARGET_OS_TV
-  CGSize screenSize = frame.size;
-#else
   CGSize screenSize = FBAdjustDimensionsForApplication(frame.size, app.interfaceOrientation);
-#endif
   return FBResponseWithObject(@{
     @"x": @(frame.origin.x),
     @"y": @(frame.origin.y),
@@ -586,7 +530,6 @@
 }
 
 
-#if !TARGET_OS_TV
 static const CGFloat DEFAULT_PICKER_OFFSET = (CGFloat)0.2;
 static const NSInteger DEFAULT_MAX_PICKER_ATTEMPTS = 25;
 
@@ -705,6 +648,5 @@ static const NSInteger DEFAULT_MAX_PICKER_ATTEMPTS = 25;
     : [elementCache elementForUUID:elementUuid checkStaleness:YES];
 }
 
-#endif
 
 @end

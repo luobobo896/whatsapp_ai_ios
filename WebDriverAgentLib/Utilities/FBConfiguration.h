@@ -311,7 +311,6 @@ typedef NS_ENUM(NSInteger, FBConfigurationKeyboardPreference) {
 + (void)setUseClearTextShortcut:(BOOL)enabled;
 + (BOOL)useClearTextShortcut;
 
-#if !TARGET_OS_TV
 /**
  Set the screenshot orientation for iOS
 
@@ -338,7 +337,6 @@ typedef NS_ENUM(NSInteger, FBConfigurationKeyboardPreference) {
 */
 + (NSString *)humanReadableScreenshotOrientation;
 
-#endif
 
 /**
  Resets all session-specific settings to their default values

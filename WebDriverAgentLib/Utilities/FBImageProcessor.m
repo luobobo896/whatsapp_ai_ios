@@ -167,7 +167,6 @@ const CGFloat FBMaxCompressionQuality = 1.0f;
                                    error:(NSError **)error
 {
   NSNumber *orientation = nil;
-#if !TARGET_OS_TV
   if (FBConfiguration.screenshotOrientation == UIInterfaceOrientationPortrait) {
     orientation = @(UIImageOrientationUp);
   } else if (FBConfiguration.screenshotOrientation == UIInterfaceOrientationPortraitUpsideDown) {
@@ -177,7 +176,6 @@ const CGFloat FBMaxCompressionQuality = 1.0f;
   } else if (FBConfiguration.screenshotOrientation == UIInterfaceOrientationLandscapeRight) {
     orientation = @(UIImageOrientationLeft);
   }
-#endif
   NSData *resultData = [self.class fixedImageDataWithImageData:imageData
                                                  scalingFactor:scalingFactor
                                                            uti:uti

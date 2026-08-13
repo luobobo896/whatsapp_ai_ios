@@ -55,7 +55,7 @@
      error:error];
 }
 
-#if (!TARGET_OS_TV && __clang_major__ >= 15)
+#if __clang_major__ >= 15
 
 + (NSString *)keyValueForName:(NSString *)name
 {

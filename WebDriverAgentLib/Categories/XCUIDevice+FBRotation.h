@@ -10,7 +10,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-#if !TARGET_OS_TV
 @interface XCUIDevice (FBRotation)
 
 /**
@@ -41,6 +40,5 @@ NS_ASSUME_NONNULL_BEGIN
 @property (copy, nonatomic, readonly) NSString *fb_deviceOrientation;
 
 @end
-#endif
 
 NS_ASSUME_NONNULL_END

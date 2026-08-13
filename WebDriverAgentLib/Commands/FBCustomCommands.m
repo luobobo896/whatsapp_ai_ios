@@ -52,13 +52,11 @@
     [[FBRoute GET:@"/wda/screen"].withoutSession respondWithTarget:self action:@selector(handleGetScreen:)],
     [[FBRoute GET:@"/wda/activeAppInfo"] respondWithTarget:self action:@selector(handleActiveAppInfo:)],
     [[FBRoute GET:@"/wda/activeAppInfo"].withoutSession respondWithTarget:self action:@selector(handleActiveAppInfo:)],
-#if !TARGET_OS_TV // tvOS does not provide relevant APIs
     [[FBRoute POST:@"/wda/setPasteboard"] respondWithTarget:self action:@selector(handleSetPasteboard:)],
     [[FBRoute POST:@"/wda/setPasteboard"].withoutSession respondWithTarget:self action:@selector(handleSetPasteboard:)],
     [[FBRoute POST:@"/wda/getPasteboard"] respondWithTarget:self action:@selector(handleGetPasteboard:)],
     [[FBRoute POST:@"/wda/getPasteboard"].withoutSession respondWithTarget:self action:@selector(handleGetPasteboard:)],
     [[FBRoute GET:@"/wda/batteryInfo"] respondWithTarget:self action:@selector(handleGetBatteryInfo:)],
-#endif
     [[FBRoute POST:@"/wda/pressButton"] respondWithTarget:self action:@selector(handlePressButtonCommand:)],
     [[FBRoute POST:@"/wda/performAccessibilityAudit"] respondWithTarget:self action:@selector(handlePerformAccessibilityAudit:)],
     [[FBRoute POST:@"/wda/performIoHidEvent"] respondWithTarget:self action:@selector(handlePeformIOHIDEvent:)],
@@ -71,7 +69,6 @@
     [[FBRoute POST:@"/wda/device/appearance"].withoutSession respondWithTarget:self action:@selector(handleSetDeviceAppearance:)],
     [[FBRoute GET:@"/wda/device/location"] respondWithTarget:self action:@selector(handleGetLocation:)],
     [[FBRoute GET:@"/wda/device/location"].withoutSession respondWithTarget:self action:@selector(handleGetLocation:)],
-#if !TARGET_OS_TV // tvOS does not provide relevant APIs
 #if __clang_major__ >= 15
     [[FBRoute POST:@"/wda/element/:uuid/keyboardInput"] respondWithTarget:self action:@selector(handleKeyboardInput:)],
 #endif
@@ -81,7 +78,6 @@
     [[FBRoute POST:@"/wda/simulatedLocation"].withoutSession respondWithTarget:self action:@selector(handleSetSimulatedLocation:)],
     [[FBRoute DELETE:@"/wda/simulatedLocation"] respondWithTarget:self action:@selector(handleClearSimulatedLocation:)],
     [[FBRoute DELETE:@"/wda/simulatedLocation"].withoutSession respondWithTarget:self action:@selector(handleClearSimulatedLocation:)],
-#endif
     [[FBRoute POST:@"/wda/voiceOver/enable"] respondWithTarget:self action:@selector(handleVoiceOverEnable:)],
     [[FBRoute POST:@"/wda/voiceOver/enable"].withoutSession respondWithTarget:self action:@selector(handleVoiceOverEnable:)],
     [[FBRoute POST:@"/wda/voiceOver/disable"] respondWithTarget:self action:@selector(handleVoiceOverDisable:)],
@@ -151,11 +147,7 @@
   XCUIElement *mainStatusBar = app.statusBars.allElementsBoundByIndex.firstObject;
   CGSize statusBarSize = (nil == mainStatusBar) ? CGSizeZero : mainStatusBar.frame.size;
 
-#if TARGET_OS_TV
-  CGSize screenSize = app.frame.size;
-#else
   CGSize screenSize = FBAdjustDimensionsForApplication(app.wdFrame.size, app.interfaceOrientation);
-#endif
 
   return FBResponseWithObject(
                               @{
@@ -240,7 +232,6 @@
   };
 }
 
-#if !TARGET_OS_TV
 + (id<FBResponsePayload>)handleSetPasteboard:(FBRouteRequest *)request
 {
   NSString *contentType = request.arguments[@"contentType"] ?: @"plaintext";
@@ -277,7 +268,6 @@
     @"state": @([UIDevice currentDevice].batteryState)
   });
 }
-#endif
 
 + (id<FBResponsePayload>)handlePressButtonCommand:(FBRouteRequest *)request
 {
@@ -349,10 +339,6 @@
  */
 + (id<FBResponsePayload>)handleGetLocation:(FBRouteRequest *)request
 {
-#if TARGET_OS_TV
-  return FBResponseWithStatus([FBCommandStatus unsupportedOperationErrorWithMessage:@"unsupported"
-                                                                          traceback:nil]);
-#else
   CLLocationManager *locationManager = [[CLLocationManager alloc] init];
   [locationManager setDistanceFilter:kCLHeadingFilterNone];
   // Always return the best acurate location data
@@ -378,7 +364,6 @@
     @"longitude": @(locationManager.location.coordinate.longitude),
     @"altitude": @(locationManager.location.altitude),
   });
-#endif
 }
 
 + (id<FBResponsePayload>)handleExpectNotification:(FBRouteRequest *)request
@@ -526,7 +511,6 @@
   return [localTimeZone name];
 }
 
-#if !TARGET_OS_TV // tvOS does not provide relevant APIs
 + (id<FBResponsePayload>)handleGetSimulatedLocation:(FBRouteRequest *)request
 {
   NSError *error;
@@ -619,7 +603,6 @@
   }
   return FBResponseWithOK();
 }
-#endif
 #endif
 
 + (id<FBResponsePayload>)fb_handleVoiceOverSpeechResponse:(nullable NSString *)utterance

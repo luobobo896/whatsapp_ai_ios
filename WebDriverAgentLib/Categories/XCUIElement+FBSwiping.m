@@ -44,7 +44,6 @@ void swipeWithDirection(NSObject *target, NSString *direction, NSNumber* _Nullab
 
 @end
 
-#if !TARGET_OS_TV
 @implementation XCUICoordinate (FBSwiping)
 
 - (void)fb_swipeWithDirection:(NSString *)direction velocity:(nullable NSNumber*)velocity
@@ -53,4 +52,3 @@ void swipeWithDirection(NSObject *target, NSString *direction, NSNumber* _Nullab
 }
 
 @end
-#endif

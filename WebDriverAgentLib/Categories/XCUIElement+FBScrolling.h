@@ -19,7 +19,6 @@ typedef NS_ENUM(NSUInteger, FBXCUIElementScrollDirection) {
   FBXCUIElementScrollDirectionHorizontal,
 };
 
-#if !TARGET_OS_TV
 
 @interface XCUIElement (FBScrolling)
 
@@ -93,6 +92,5 @@ typedef NS_ENUM(NSUInteger, FBXCUIElementScrollDirection) {
 
 @end
 
-#endif
 
 NS_ASSUME_NONNULL_END

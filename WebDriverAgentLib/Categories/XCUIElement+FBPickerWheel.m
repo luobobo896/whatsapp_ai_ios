@@ -16,7 +16,6 @@
 #import "XCUIElement+FBCaching.h"
 #import "XCUIElement+FBResolve.h"
 
-#if !TARGET_OS_TV
 @implementation XCUIElement (FBPickerWheel)
 
 static const NSTimeInterval VALUE_CHANGE_TIMEOUT = 2;
@@ -55,4 +54,3 @@ static const NSTimeInterval VALUE_CHANGE_TIMEOUT = 2;
 }
 
 @end
-#endif

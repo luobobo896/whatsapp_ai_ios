@@ -377,14 +377,6 @@ NSDictionary<NSString *, NSString *> *customExclusionAttributesMap(void) {
           fb_firstMatch];
 }
 
-#if TARGET_OS_TV
-- (XCUIElement *)fb_focusedElement
-{
-  return [[[self.fb_query descendantsMatchingType:XCUIElementTypeAny]
-           matchingPredicate:[NSPredicate predicateWithFormat:@"hasFocus == true"]]
-          fb_firstMatch];
-}
-#endif
 
 - (BOOL)fb_dismissKeyboardWithKeyNames:(nullable NSArray<NSString *> *)keyNames
                                  error:(NSError **)error
@@ -400,9 +392,6 @@ NSDictionary<NSString *, NSString *> *customExclusionAttributesMap(void) {
     return YES;
   }
 
-#if TARGET_OS_TV
-  [[XCUIRemote sharedRemote] pressButton:XCUIRemoteButtonMenu];
-#else
   NSArray<XCUIElement *> *(^findMatchingKeys)(NSPredicate *) = ^NSArray<XCUIElement *> *(NSPredicate * predicate) {
     NSPredicate *keysPredicate = [NSPredicate predicateWithFormat:@"elementType == %@", @(XCUIElementTypeKey)];
     XCUIElementQuery *parentView = [[self.keyboard descendantsMatchingType:XCUIElementTypeOther]
@@ -443,7 +432,6 @@ NSDictionary<NSString *, NSString *> *customExclusionAttributesMap(void) {
       [matchedKeys[matchedKeys.count - 1] tap];
     }
   }
-#endif
   NSString *errorDescription = @"Did not know how to dismiss the keyboard. Try to dismiss it in the way supported by your application under test.";
   return [[[[FBRunLoopSpinner new]
             timeout:3]

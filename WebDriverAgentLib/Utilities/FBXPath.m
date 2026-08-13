@@ -140,13 +140,6 @@
 
 @end
 
-#if TARGET_OS_TV
-
-@interface FBFocusedAttribute : FBElementAttribute
-
-@end
-
-#endif
 
 const static char *_UTF8Encoding = "UTF-8";
 
@@ -695,9 +688,6 @@ static NSString *const FBAbstractMethodInvocationException = @"AbstractMethodInv
            FBVisibleAttribute.class,
            FBAccessibleAttribute.class,
            FBNativeAccessibilityElementAttribute.class,
-#if TARGET_OS_TV
-           FBFocusedAttribute.class,
-#endif
            FBXAttribute.class,
            FBYAttribute.class,
            FBWidthAttribute.class,
@@ -819,23 +809,6 @@ static NSString *const FBAbstractMethodInvocationException = @"AbstractMethodInv
 
 @end
 
-#if TARGET_OS_TV
-
-@implementation FBFocusedAttribute
-
-+ (NSString *)name
-{
-  return @"focused";
-}
-
-+ (NSString *)valueForElement:(id<FBElement>)element
-{
-  return FBBoolToString(element.wdFocused);
-}
-
-@end
-
-#endif
 
 @implementation FBDimensionAttribute
 

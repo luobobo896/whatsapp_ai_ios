@@ -31,7 +31,6 @@ const CGFloat FBTouchEventDelay = 0.5f;
 const CGFloat FBTouchVelocity = 300; // pixels per sec
 const CGFloat FBScrollTouchProportion = 0.75f;
 
-#if !TARGET_OS_TV
 
 @interface FBXCElementSnapshotWrapper (FBScrolling)
 
@@ -339,4 +338,3 @@ const CGFloat FBScrollTouchProportion = 0.75f;
 
 @end
 
-#endif

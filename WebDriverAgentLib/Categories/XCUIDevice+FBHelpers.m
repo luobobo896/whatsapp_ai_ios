@@ -26,38 +26,6 @@
 static const NSTimeInterval FBHomeButtonCoolOffTime = 1.;
 static const NSTimeInterval FBScreenLockTimeout = 5.;
 
-#if TARGET_OS_TV
-NSDictionary<NSString *, NSNumber *> *fb_availableButtonNames(void) {
-  static dispatch_once_t onceToken;
-  static NSDictionary *result;
-  dispatch_once(&onceToken, ^{
-    NSMutableDictionary *buttons = [NSMutableDictionary dictionary];
-    // https://developer.apple.com/design/human-interface-guidelines/remotes
-    buttons[@"up"] = @(XCUIRemoteButtonUp);                     // 0
-    buttons[@"down"] = @(XCUIRemoteButtonDown);                 // 1
-    buttons[@"left"] = @(XCUIRemoteButtonLeft);                 // 2
-    buttons[@"right"] = @(XCUIRemoteButtonRight);               // 3
-    buttons[@"select"] = @(XCUIRemoteButtonSelect);             // 4
-    buttons[@"menu"] = @(XCUIRemoteButtonMenu);                 // 5
-    buttons[@"playpause"] = @(XCUIRemoteButtonPlayPause);       // 6
-    buttons[@"home"] = @(XCUIRemoteButtonHome);                 // 7
-#if __clang_major__ >= 15 // Xcode 15+
-    buttons[@"pageup"] = @(XCUIRemoteButtonPageUp);             // 9
-    buttons[@"pagedown"] = @(XCUIRemoteButtonPageDown);         // 10
-    buttons[@"guide"] = @(XCUIRemoteButtonGuide);               // 11
-#endif
-#if __clang_major__ >= 17 // likely Xcode 16.3+
-    if (@available(tvOS 18.1, *)) {
-      buttons[@"fourcolors"] = @(XCUIRemoteButtonFourColors);   // 12
-      buttons[@"onetwothree"] = @(XCUIRemoteButtonOneTwoThree); // 13
-      buttons[@"tvprovider"] = @(XCUIRemoteButtonTVProvider);   // 14
-    }
-#endif
-    result = [buttons copy];
-  });
-  return result;
-}
-#else
 NSDictionary<NSString *, NSNumber *> *fb_availableButtonNames(void) {
   static dispatch_once_t onceToken;
   static NSDictionary *result;
@@ -84,7 +52,6 @@ NSDictionary<NSString *, NSNumber *> *fb_availableButtonNames(void) {
   });
   return result;
 }
-#endif
 
 @implementation XCUIDevice (FBHelpers)
 
@@ -154,11 +121,7 @@ static bool fb_isLocked;
   }
   [self pressButton:XCUIDeviceButtonHome];
   [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:FBHomeButtonCoolOffTime]];
-#if !TARGET_OS_TV
   [self pressButton:XCUIDeviceButtonHome];
-#else
-  [self pressButton:XCUIDeviceButtonHome];
-#endif
   [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:FBHomeButtonCoolOffTime]];
   return [[[[FBRunLoopSpinner new]
             timeout:FBScreenLockTimeout]
@@ -289,31 +252,9 @@ static bool fb_isLocked;
            forDuration:(nullable NSNumber *)duration
                  error:(NSError **)error
 {
-#if !TARGET_OS_TV
   return [self fb_pressButton:buttonName error:error];
-#else
-
-  NSDictionary<NSString *, NSNumber *> *availableButtons = fb_availableButtonNames();
-  NSNumber *buttonValue = availableButtons[buttonName.lowercaseString];
-  
-  if (!buttonValue) {
-    NSArray *sortedKeys = [availableButtons.allKeys sortedArrayUsingSelector:@selector(compare:)];
-    return [[[FBErrorBuilder builder]
-             withDescriptionFormat:@"The button '%@' is not supported. The device under test only supports the following buttons: %@", buttonName, sortedKeys]
-            buildError:error];
-  }
-  if (duration) {
-    // https://developer.apple.com/documentation/xcuiautomation/xcuiremote/press(_:forduration:)
-    [[XCUIRemote sharedRemote] pressButton:(XCUIRemoteButton)[buttonValue unsignedIntegerValue] forDuration:duration.doubleValue];
-  } else {
-    // https://developer.apple.com/documentation/xcuiautomation/xcuiremote/press(_:)
-    [[XCUIRemote sharedRemote] pressButton:(XCUIRemoteButton)[buttonValue unsignedIntegerValue]];
-  }
-  return YES;
-#endif
 }
 
-#if !TARGET_OS_TV
 - (BOOL)fb_pressButton:(NSString *)buttonName
                  error:(NSError **)error
 {
@@ -329,7 +270,6 @@ static bool fb_isLocked;
   [self pressButton:(XCUIDeviceButton)[buttonValue unsignedIntegerValue]];
   return YES;
 }
-#endif
 
 - (BOOL)fb_performIOHIDEventWithPage:(unsigned int)page
                                usage:(unsigned int)usage
@@ -382,7 +322,6 @@ static bool fb_isLocked;
   : nil;
 }
 
-#if !TARGET_OS_TV
 - (BOOL)fb_setSimulatedLocation:(CLLocation *)location error:(NSError **)error
 {
   return [FBXCTestDaemonsProxy setSimulatedLocation:location error:error];
@@ -397,6 +336,5 @@ static bool fb_isLocked;
 {
   return [FBXCTestDaemonsProxy clearSimulatedLocation:error];
 }
-#endif
 
 @end

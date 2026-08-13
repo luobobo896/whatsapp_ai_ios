@@ -85,13 +85,10 @@ BOOL FBTypeText(NSString *text, NSUInteger typingSpeed, NSError **error)
   }
 
   [FBLogger logFmt:@"Neither the \"%@\" element itself nor its accessible descendants have the keyboard input focus", snapshot.fb_description];
-// There is no possibility to open the keyboard by tapping a field in TvOS
-#if !TARGET_OS_TV
   [FBLogger logFmt:@"Trying to tap the \"%@\" element to have it focused", snapshot.fb_description];
   [self tap];
   // It might take some time to update the UI
   [self fb_standardSnapshot];
-#endif
 }
 
 - (BOOL)fb_typeText:(NSString *)text
@@ -175,7 +172,6 @@ BOOL FBTypeText(NSString *text, NSUInteger typingSpeed, NSError **error)
   NSUInteger preClearTextLength = [currentValue fb_visualLength];
   NSString *backspacesToType = [backspaceDeleteSequence fb_repeatTimes:preClearTextLength];
 
-#if TARGET_OS_IOS
   NSUInteger retry = 0;
   NSString *placeholderValue = snapshot.placeholderValue;
   do {
@@ -210,13 +206,6 @@ BOOL FBTypeText(NSString *text, NSUInteger typingSpeed, NSError **error)
     retry++;
   } while (preClearTextLength > 0);
   return YES;
-#else
-  // tvOS does not need a focus.
-  // kHIDPage_KeyboardOrKeypad did not work for tvOS's search field. (tvOS 17 at least)
-  // Tested XCUIElementTypeSearchField and XCUIElementTypeTextView whch were
-  // common search field and email/passowrd input in tvOS apps.
-  return FBTypeText(backspacesToType, FBConfiguration.defaultTypingFrequency, error);
-#endif
 }
 
 @end

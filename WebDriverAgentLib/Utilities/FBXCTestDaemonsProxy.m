@@ -183,7 +183,6 @@ static void swizzledLaunchApp(id self, SEL _cmd, NSString *path, NSString *bundl
   return didSucceed;
 }
 
-#if !TARGET_OS_TV
 + (BOOL)setSimulatedLocation:(CLLocation *)location error:(NSError *__autoreleasing*)error
 {
   XCTRunnerDaemonSession *session = [XCTRunnerDaemonSession sharedSession];
@@ -281,7 +280,6 @@ static void swizzledLaunchApp(id self, SEL _cmd, NSString *path, NSString *bundl
   }
   return didSucceed;
 }
-#endif
 
 + (FBScreenRecordingPromise *)startScreenRecordingWithRequest:(FBScreenRecordingRequest *)request
                                                         error:(NSError *__autoreleasing*)error

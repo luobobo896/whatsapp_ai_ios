@@ -18,9 +18,7 @@
 @property BOOL safeQueryResolutionEnabled; // @synthesize safeQueryResolutionEnabled=_safeQueryResolutionEnabled;
 @property(retain) id/*XCElementSnapshot*/ lastSnapshot; // @synthesize lastSnapshot=_lastSnapshot;
 @property(readonly) XCUIElementQuery *query; // @synthesize query=_query;
-#if !TARGET_OS_TV
 @property(readonly, nonatomic) UIInterfaceOrientation interfaceOrientation;
-#endif
 @property(readonly, copy) XCUICoordinate *hitPointCoordinate;
 @property(readonly) BOOL isTopLevelTouchBarElement;
 @property(readonly) BOOL isTouchBarElement;

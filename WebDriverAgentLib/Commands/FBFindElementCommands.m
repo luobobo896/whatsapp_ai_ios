@@ -43,11 +43,7 @@ static id<FBResponsePayload> FBNoSuchElementErrorResponseForRequest(FBRouteReque
     [[FBRoute POST:@"/element/:uuid/element"] respondWithTarget:self action:@selector(handleFindSubElement:)],
     [[FBRoute POST:@"/element/:uuid/elements"] respondWithTarget:self action:@selector(handleFindSubElements:)],
     [[FBRoute GET:@"/wda/element/:uuid/getVisibleCells"] respondWithTarget:self action:@selector(handleFindVisibleCells:)],
-#if TARGET_OS_TV
-    [[FBRoute GET:@"/element/active"] respondWithTarget:self action:@selector(handleGetFocusedElement:)],
-#else
     [[FBRoute GET:@"/element/active"] respondWithTarget:self action:@selector(handleGetActiveElement:)],
-#endif
   ];
 }
 
@@ -125,15 +121,6 @@ static id<FBResponsePayload> FBNoSuchElementErrorResponseForRequest(FBRouteReque
   return FBResponseWithCachedElement(element, request.session.elementCache, FBConfiguration.shouldUseCompactResponses);
 }
 
-#if TARGET_OS_TV
-+ (id<FBResponsePayload>)handleGetFocusedElement:(FBRouteRequest *)request
-{
-  XCUIElement *element = request.session.activeApplication.fb_focusedElement;
-  return element == nil
-    ? FBNoSuchElementErrorResponseForRequest(request)
-    : FBResponseWithCachedElement(element, request.session.elementCache, FBConfiguration.shouldUseCompactResponses);
-}
-#endif
 
 #pragma mark - Helpers
 

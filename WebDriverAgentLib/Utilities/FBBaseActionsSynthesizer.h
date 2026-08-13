@@ -13,7 +13,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-#if !TARGET_OS_TV
 @interface FBBaseActionItem : NSObject
 
 /*! Raw JSON representation of the corresponding action item */
@@ -126,6 +125,5 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable XCSynthesizedEventRecord *)synthesizeWithError:(NSError **)error;
 
 @end
-#endif
 
 NS_ASSUME_NONNULL_END

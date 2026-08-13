@@ -9,7 +9,6 @@
 
 @class XCUIElement;
 
-#if !TARGET_OS_TV
 @interface XCUICoordinate ()
 {
     XCUIElement *_element;
@@ -41,4 +40,3 @@
      thenHoldForDuration:(double)holdDuration;
 
 @end
-#endif

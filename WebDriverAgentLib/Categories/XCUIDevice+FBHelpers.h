@@ -8,9 +8,7 @@
 
 #import <XCTest/XCTest.h>
 
-#if !TARGET_OS_TV
 #import <CoreLocation/CoreLocation.h>
-#endif
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -108,12 +106,7 @@ typedef NS_ENUM(NSUInteger, FBUIInterfaceAppearance) {
 
  @param buttonName One of the supported button names: volumeUp (real devices only), volumeDown (real device only),
                    camera (supported iOS 16+ real devices only), action (supported iOS 16+ devices only), home
- @param duration Duration in seconds or nil.
-                This argument works only on tvOS. When this argument is nil on tvOS,
-                https://developer.apple.com/documentation/xctest/xcuiremote/1627476-pressbutton will be called.
-                Others are https://developer.apple.com/documentation/xctest/xcuiremote/1627475-pressbutton.
-                A single tap when this argument is `nil` is equal to when the duration is 0.005 seconds in XCTest.
-                On iOS, this value will be ignored. It always calls https://developer.apple.com/documentation/xctest/xcuidevice/1619052-pressbutton
+ @param duration Duration in seconds or nil. On iOS this value is ignored.
  @return YES if the button has been pressed
  */
 - (BOOL)fb_pressButton:(NSString *)buttonName forDuration:(nullable NSNumber *)duration error:(NSError **)error;
@@ -166,7 +159,6 @@ typedef NS_ENUM(NSUInteger, FBUIInterfaceAppearance) {
  */
 - (nullable NSNumber *)fb_getAppearance;
 
-#if !TARGET_OS_TV
 /**
  Allows to set a simulated geolocation coordinates.
  Only works since iOS 16.4 runtime
@@ -195,7 +187,6 @@ typedef NS_ENUM(NSUInteger, FBUIInterfaceAppearance) {
  @return YES if the simulated location has been successfully cleared
  */
 - (BOOL)fb_clearSimulatedLocation:(NSError **)error;
-#endif
 
 @end
 

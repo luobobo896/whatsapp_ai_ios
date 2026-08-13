@@ -69,12 +69,6 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (nullable XCUIElement *)fb_activeElement;
 
-#if TARGET_OS_TV
-/**
- Returns the element, which currently focused.
- */
-- (nullable XCUIElement *)fb_focusedElement;
-#endif
 
 /**
  Waits until the current on-screen accessbility element belongs to the current application instance

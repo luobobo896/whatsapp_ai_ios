@@ -44,7 +44,6 @@ BOOL FBRectFuzzyEqualToRect(CGRect rect1, CGRect rect2, CGFloat threshold)
   FBSizeFuzzyEqualToSize(rect1.size, rect2.size, threshold);
 }
 
-#if !TARGET_OS_TV
 
 CGSize FBAdjustDimensionsForApplication(CGSize actualSize, UIInterfaceOrientation orientation)
 {
@@ -60,4 +59,3 @@ CGSize FBAdjustDimensionsForApplication(CGSize actualSize, UIInterfaceOrientatio
   }
   return actualSize;
 }
-#endif

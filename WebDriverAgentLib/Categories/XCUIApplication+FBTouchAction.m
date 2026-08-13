@@ -19,7 +19,6 @@
 #import "XCEventGenerator.h"
 #import "XCUIElement+FBUtilities.h"
 
-#if !TARGET_OS_TV
 
 @implementation XCUIApplication (FBTouchAction)
 
@@ -72,4 +71,3 @@
 }
 
 @end
-#endif

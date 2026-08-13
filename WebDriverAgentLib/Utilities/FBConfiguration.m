@@ -57,9 +57,7 @@ static BOOL FBShouldUseCompactResponses;
 static NSString *FBElementResponseAttributes;
 static BOOL FBUseClearTextShortcut;
 static BOOL FBLimitXpathContextScope = YES;
-#if !TARGET_OS_TV
 static UIInterfaceOrientation FBScreenshotOrientation;
-#endif
 static BOOL FBShouldIncludeHittableInPageSource = NO;
 static BOOL FBShouldIncludeNativeFrameInPageSource = NO;
 static BOOL FBShouldIncludeNativeAccessibilityElementInPageSource = NO;
@@ -479,7 +477,6 @@ static BOOL FBShouldEnforceCustomSnapshots = NO;
   FBLimitXpathContextScope = enabled;
 }
 
-#if !TARGET_OS_TV
 + (BOOL)setScreenshotOrientation:(NSString *)orientation error:(NSError **)error
 {
   // Only UIInterfaceOrientationUnknown is over iOS 8. Others are over iOS 2.
@@ -524,7 +521,6 @@ static BOOL FBShouldEnforceCustomSnapshots = NO;
     default: break;
   }
 }
-#endif
 
 + (void)resetSessionSettings
 {
@@ -545,9 +541,7 @@ static BOOL FBShouldEnforceCustomSnapshots = NO;
   FBSetCustomParameterForElementSnapshot(FBSnapshotMaxChildrenKey, @INT_MAX);
   FBUseClearTextShortcut = YES;
   FBLimitXpathContextScope = YES;
-#if !TARGET_OS_TV
   FBScreenshotOrientation = UIInterfaceOrientationUnknown;
-#endif
 }
 
 #pragma mark Private

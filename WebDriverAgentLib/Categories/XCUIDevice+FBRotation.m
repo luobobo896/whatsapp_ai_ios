@@ -13,7 +13,6 @@
 #import "XCUIApplication+FBHelpers.h"
 #import "XCUIElement+FBUtilities.h"
 
-# if !TARGET_OS_TV
 
 @implementation XCUIDevice (FBRotation)
 
@@ -105,4 +104,3 @@ static UIInterfaceOrientation FBInterfaceOrientationFromDeviceOrientation(UIDevi
 }
 
 @end
-#endif
