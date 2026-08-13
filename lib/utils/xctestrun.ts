@@ -5,7 +5,6 @@ import {fs, plist, util} from '@appium/support';
 
 import {log} from '../logger.js';
 import type {DeviceInfo} from '../types.js';
-import {isTvOS} from './platform.js';
 
 /**
  * Arguments for setting xctestrun file
@@ -38,7 +37,6 @@ export async function setXctestrunFile(args: XctestrunFileArgs): Promise<string>
   const xctestrunFilePath = await getXctestrunFilePath(deviceInfo, sdkVersion, bootstrapPath);
   const xctestRunContent = await plist.parsePlistFile(xctestrunFilePath);
   const updateWDAPort = getAdditionalRunContent(
-    deviceInfo.platformName,
     wdaRemotePort,
     wdaBindingIP,
     maxHttpRequestBodySize,
@@ -51,19 +49,17 @@ export async function setXctestrunFile(args: XctestrunFileArgs): Promise<string>
 
 /**
  * Return the WDA object which appends existing xctest runner content
- * @param platformName - The name of the platform
  * @param wdaRemotePort - The remote port number
  * @param wdaBindingIP - The IP address to bind to. If not given, it binds to all interfaces.
  * @param maxHttpRequestBodySize - The maximum HTTP request body size in bytes.
  * @return returns a runner object which has USE_PORT and optionally USE_IP
  */
 export function getAdditionalRunContent(
-  platformName: string,
   wdaRemotePort: number | string,
   wdaBindingIP?: string,
   maxHttpRequestBodySize?: number | string,
 ): Record<string, any> {
-  const runner = `WebDriverAgentRunner${isTvOS(platformName) ? '_tvOS' : ''}`;
+  const runner = 'WebDriverAgentRunner';
   return {
     [runner]: {
       EnvironmentVariables: {
@@ -130,7 +126,7 @@ export function getXctestrunFileName(deviceInfo: DeviceInfo, version: string): s
   const archSuffix = deviceInfo.isRealDevice
     ? `os${version}-arm64`
     : `simulator${version}-${arch() === 'arm64' ? 'arm64' : 'x86_64'}`;
-  return `WebDriverAgentRunner_${isTvOS(deviceInfo.platformName) ? 'tvOS_appletv' : 'iphone'}${archSuffix}.xctestrun`;
+  return `WebDriverAgentRunner_iphone${archSuffix}.xctestrun`;
 }
 
 function mergeObjects<T extends Record<string, any>, U extends Record<string, any>>(target: T, source: U): T & U {

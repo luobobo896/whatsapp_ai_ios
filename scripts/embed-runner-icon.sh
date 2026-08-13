@@ -12,7 +12,7 @@
 #
 # Limitations:
 #   - Touches XCTRunner internals; may need updates across Xcode versions.
-#   - iOS only; tvOS uses different "Brand Assets" and is not handled.
+#   - iOS only.
 #   - Cloud device farms that re-sign WDA must preserve these changes.
 
 set -euo pipefail

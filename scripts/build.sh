@@ -15,17 +15,13 @@ function define_xc_macros() {
   case "$TARGET" in
     "lib" ) XC_TARGET="WebDriverAgentLib";;
     "runner" ) XC_TARGET="WebDriverAgentRunner";;
-    "tv_lib" ) XC_TARGET="WebDriverAgentLib_tvOS";;
-    "tv_runner" ) XC_TARGET="WebDriverAgentRunner_tvOS";;
     *) echo "Unknown TARGET"; exit 1 ;;
   esac
 
   case "${DEST:-}" in
     "iphone" ) XC_DESTINATION="platform=iOS Simulator,name=`echo $IPHONE_MODEL | tr -d "'"`,OS=$IOS_VERSION";;
     "ipad" ) XC_DESTINATION="platform=iOS Simulator,name=`echo $IPAD_MODEL | tr -d "'"`,OS=$IOS_VERSION";;
-    "tv" ) XC_DESTINATION="platform=tvOS Simulator,name=`echo $TV_MODEL | tr -d "'"`,OS=$TV_VERSION";;
     "generic" ) XC_DESTINATION="generic/platform=iOS";;
-    "tv_generic" ) XC_DESTINATION="generic/platform=tvOS" XC_MACROS="${XC_MACROS} ARCHS=arm64";; # tvOS only supports arm64
   esac
 
   case "$ACTION" in
@@ -34,15 +30,11 @@ function define_xc_macros() {
       XC_ACTION="analyze"
       XC_MACROS="${XC_MACROS} CLANG_ANALYZER_OUTPUT=plist-html CLANG_ANALYZER_OUTPUT_DIR=\"$(pwd)/clang\""
     ;;
-    "unit_test" ) XC_ACTION="test -only-testing:UnitTests";;
-    "tv_unit_test" ) XC_ACTION="test -only-testing:UnitTests_tvOS";;
   esac
 
   case "$SDK" in
     "sim" ) XC_SDK="iphonesimulator";;
     "device" ) XC_SDK="iphoneos";;
-    "tv_sim" ) XC_SDK="appletvsimulator";;
-    "tv_device" ) XC_SDK="appletvos";;
     *) echo "Unknown SDK"; exit 1 ;;
   esac
 
@@ -84,41 +76,8 @@ function xcbuild() {
 
 }
 
-function fastlane_test() {
-  # Skip bundle install if already installed (CI already does this)
-  if ! bundle check &>/dev/null; then
-    bundle install
-  fi
-
-  case "${DEST:-}" in
-    "iphone" )
-      FASTLANE_DEVICE="$(echo $IPHONE_MODEL | tr -d "'") ($IOS_VERSION)"
-      ;;
-    "ipad" )
-      FASTLANE_DEVICE="$(echo $IPAD_MODEL | tr -d "'") ($IOS_VERSION)"
-      ;;
-    "tv" )
-      FASTLANE_DEVICE="$(echo $TV_MODEL | tr -d "'") ($TV_VERSION)"
-      ;;
-    * )
-      echo "Error: Unknown DEST value '${DEST:-}'. DEST must be one of: iphone, ipad, tv"
-      exit 1
-      ;;
-  esac
-
-  echo "Fastlane environment variables:"
-  echo "  DEVICE=$FASTLANE_DEVICE"
-  echo "  SCHEME=$1"
-  echo "  SDK=$XC_SDK"
-
-  SDK="$XC_SDK" DEVICE="$FASTLANE_DEVICE" SCHEME="$1" bundle exec fastlane test
-}
-
 define_xc_macros
 case "$ACTION" in
   "analyze" ) analyze ;;
-  "int_test_1" ) fastlane_test IntegrationTests_1 ;;
-  "int_test_2" ) fastlane_test IntegrationTests_2 ;;
-  "int_test_3" ) fastlane_test IntegrationTests_3 ;;
   *) xcbuild ;;
 esac

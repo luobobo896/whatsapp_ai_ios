@@ -177,11 +177,9 @@ export interface XcodeShowBuildSettingsEntry {
 
 export type WdaScheme =
   | 'WebDriverAgentRunner'
-  | 'WebDriverAgentLib'
-  | 'WebDriverAgentRunner_tvOS'
-  | 'WebDriverAgentLib_tvOS';
+  | 'WebDriverAgentLib';
 
-export type WdaSdk = 'iphonesimulator' | 'iphoneos' | 'appletvsimulator' | 'appletvos';
+export type WdaSdk = 'iphonesimulator' | 'iphoneos';
 
 export type WdaBuildConfiguration = 'Debug' | 'Release';
 

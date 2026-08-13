@@ -15,7 +15,7 @@ import type {
   XcodeBuildSettings,
   XcodeShowBuildSettingsEntry,
 } from './types.js';
-import {getWDAUpgradeTimestamp, isTvOS, setRealDeviceSecurity, setXctestrunFile} from './utils/index.js';
+import {getWDAUpgradeTimestamp, setRealDeviceSecurity, setXctestrunFile} from './utils/index.js';
 
 const DEFAULT_SIGNING_ID = 'iPhone Developer';
 const PREBUILD_DELAY = 0;
@@ -28,9 +28,6 @@ const IGNORED_ERRORS = [ERROR_WRITING_ATTACHMENT, ERROR_COPYING_ATTACHMENT, 'Fai
 const IGNORED_ERRORS_PATTERN = new RegExp(
   '(' + IGNORED_ERRORS.map((errStr) => util.escapeRegExp(errStr)).join('|') + ')',
 );
-
-const RUNNER_SCHEME_TV = 'WebDriverAgentRunner_tvOS';
-const LIB_SCHEME_TV = 'WebDriverAgentLib_tvOS';
 
 const REAL_DEVICES_CONFIG_DOCS_LINK =
   'https://appium.github.io/appium-xcuitest-driver/latest/preparation/real-device-config/';
@@ -177,7 +174,7 @@ export class XcodeBuild {
       return this.derivedDataPath;
     }
 
-    // iOS/tvOS share the same derived data path
+    // iOS uses the derived data path
     const buildSettings = await this.retrieveBuildSettings({
       scheme: 'WebDriverAgentRunner',
     });
@@ -215,8 +212,8 @@ export class XcodeBuild {
    * Cleans both the library and runner schemes for the appropriate platform.
    */
   async cleanProject(): Promise<void> {
-    const libScheme = isTvOS(this.platformName || '') ? LIB_SCHEME_TV : LIB_SCHEME_IOS;
-    const runnerScheme = isTvOS(this.platformName || '') ? RUNNER_SCHEME_TV : RUNNER_SCHEME_IOS;
+    const libScheme = LIB_SCHEME_IOS;
+    const runnerScheme = RUNNER_SCHEME_IOS;
 
     for (const scheme of [libScheme, runnerScheme]) {
       this.log.debug(
@@ -387,7 +384,7 @@ export class XcodeBuild {
     if (this.useXctestrunFile && this.xctestrunFilePath) {
       args.push('-xctestrun', this.xctestrunFilePath);
     } else {
-      const runnerScheme = isTvOS(this.platformName || '') ? RUNNER_SCHEME_TV : RUNNER_SCHEME_IOS;
+      const runnerScheme = RUNNER_SCHEME_IOS;
       args.push('-project', this.agentPath, '-scheme', runnerScheme);
       if (this.derivedDataPath) {
         args.push('-derivedDataPath', this.derivedDataPath);
@@ -398,7 +395,7 @@ export class XcodeBuild {
     const versionMatch = this.platformVersion ? new RegExp(/^(\d+)\.(\d+)/).exec(this.platformVersion) : null;
     if (versionMatch) {
       args.push(
-        `${isTvOS(this.platformName || '') ? 'TV' : 'IPHONE'}OS_DEPLOYMENT_TARGET=${versionMatch[1]}.${versionMatch[2]}`,
+        `IPHONEOS_DEPLOYMENT_TARGET=${versionMatch[1]}.${versionMatch[2]}`,
       );
     } else {
       this.log.warn(

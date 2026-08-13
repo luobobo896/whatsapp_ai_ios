@@ -8,9 +8,6 @@ export const WDA_SCHEME = 'WebDriverAgentRunner';
 export const PROJECT_FILE = 'project.pbxproj';
 export const WDA_BASE_URL = 'http://127.0.0.1';
 
-export const PLATFORM_NAME_TVOS = 'tvOS';
-export const PLATFORM_NAME_IOS = 'iOS';
-
 export const SDK_SIMULATOR = 'iphonesimulator';
 export const SDK_DEVICE = 'iphoneos';
 
