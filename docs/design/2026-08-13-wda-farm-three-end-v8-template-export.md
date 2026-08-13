@@ -36,10 +36,17 @@
 - 测试：model 渲染单测、store 模板/渲染集成测试（真实 PG）、handler 路由与 CSV 净化单测、
   前端 templateVars/导出/保存模板单测；存量 Go/前端测试全部通过。
 
-### 本地网关 `whatsapp_ai_gateway`（main-test，已提交 ad41de5，本机已重启加载）
+### 本地网关 `whatsapp_ai_gateway`（main-test，已提交 ad41de5 / 7fc9c5a，本机已重启加载）
 
-- `internal/gateway/executor.go`：`TaskItem` 增加 `Content`；发送时优先用明细内容，
-  空则沿用任务级内容（兼容旧平台任务与 v7 已落库任务）。
+- `internal/gateway/executor.go`：
+  - `TaskItem` 增加 `Content`；发送时优先用明细内容，空则沿用任务级内容
+    （兼容旧平台任务与 v7 已落库任务）。
+  - **metrics 落盘聚合**（P1 剩余项）：`metrics.json` 持久化（tmp+rename 原子写），
+    跨天把当日分设备计数折入 history 按天归档并重置当日计数；启动加载历史
+    （损坏文件仅告警不阻塞）；`MetricsSummary()` 提供网关级聚合视图。
+- `internal/gateway/web.go`：新增 `GET /api/metrics`（今日汇总 + 分设备 + 历史按天倒序）。
+- `static/index.html`：设备总览新增「今日发送成功/失败」卡片，随 5s 刷新更新。
+- 测试：落盘重启不丢、跨天归档、跨天+重启、损坏文件忽略四组单测通过。
 
 ### 手机 WDA `WhatsAppDeviceAgent`
 
@@ -51,8 +58,8 @@
   备份 `/var/backups/whatsapp_ai/20260813T132552Z`，服务 active、`/health/ready` ok。
 - 迁移核验（HK psql）：`mobile_broadcast_templates` 表存在（7 列），
   `mobile_broadcast_items.content`、`mobile_broadcast_tasks.template_id/template_name` 均已建。
-- 网关：本机 tmux session `gateway` 重启（`:8300`），21:25:53 重连云通道成功，
-  收到租户身份（测试租客），executor 空闲。
+- 网关：本机 tmux session `gateway` 重启（`:8300`），21:30:45 重连云通道成功，
+  收到租户身份（测试租客），executor 空闲；`/api/metrics` 返回聚合视图。
 
 ## 验证
 
@@ -74,4 +81,7 @@
   `RenderBroadcastTemplate` 的值表。
 - 渲染发生在任务创建时刻（date/time 为创建时快照）；跨天任务各条日期相同，属预期。
 - 导出为单任务 CSV；跨任务/按时段的运营报表（需求 1.18/5.6 类）不在本轮范围。
-- 网关未推送 GitHub（历史 29 个提交同样仅本地），如需远程备份可 `git push origin main-test`。
+- 网关 metrics 为网关本地按天聚合；「今日」为网关本地时区日期，与平台时区一致（同机）。
+- 网关未推送 GitHub（历史 29+2 个提交同样仅本地），如需远程备份可 `git push origin main-test`。
+- P1 剩余：**多设备队列调度**（任务跨设备分配/聚合进度）、**普通 WhatsApp 真机校准**
+  （Business 已校准，普通版选择器待真机复核）。
