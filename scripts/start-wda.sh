@@ -6,6 +6,23 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 
 WDA_DEVICE_UDID=${WDA_DEVICE_UDID:-}
+# 上报给 App/注册接口的真机 UDID（与 xcodebuild 目标 UDID 分开）。
+# 自动获取当前 USB 连接设备的 UDID（ioreg 的 UsbAppleDeviceUDID，40 位经典格式）。
+if [ -z "${WDA_REPORTED_UDID:-}" ]; then
+  WDA_REPORTED_UDID="$(ioreg -p IOUSB -l -w0 2>/dev/null \
+    | sed -nE 's/.*"UsbAppleDeviceUDID" = "([0-9A-Fa-f]{40})".*/\1/p' \
+    | head -n 1)"
+fi
+# 兜底：xctrace 中 40 位经典格式 UDID 的设备
+if [ -z "${WDA_REPORTED_UDID:-}" ]; then
+  WDA_REPORTED_UDID="$(xcrun xctrace list devices 2>/dev/null \
+    | grep -oE '\([0-9A-Fa-f]{40}\)' | tr -d '()' | head -n 1)"
+fi
+if [ -z "${WDA_REPORTED_UDID:-}" ]; then
+  echo "Unable to discover the USB-connected device UDID. Set WDA_REPORTED_UDID explicitly." >&2
+  exit 1
+fi
+echo "Discovered USB device UDID: ${WDA_REPORTED_UDID}" >&2
 WDA_SIGNING_IDENTITY=${WDA_SIGNING_IDENTITY:-129DCD812F1D6C5E696E3F44196A179FC61788A1}
 WDA_DERIVED_DATA_PATH=${WDA_DERIVED_DATA_PATH:-/tmp/WebDriverAgentIntegrationDerived}
 WDA_LOG_PATH=${WDA_LOG_PATH:-/tmp/wda-from-integration-app.log}
@@ -57,10 +74,10 @@ cp -f "${GENERATED_XCTESTRUN}" "${WDA_RUNTIME_XCTESTRUN}"
   -c "Delete :WebDriverAgentRunner:EnvironmentVariables:WDA_DEVICE_UDID" \
   "${WDA_RUNTIME_XCTESTRUN}" 2>/dev/null || true
 /usr/libexec/PlistBuddy \
-  -c "Add :WebDriverAgentRunner:EnvironmentVariables:WDA_DEVICE_UDID string ${WDA_DEVICE_UDID}" \
+  -c "Add :WebDriverAgentRunner:EnvironmentVariables:WDA_DEVICE_UDID string ${WDA_REPORTED_UDID}" \
   "${WDA_RUNTIME_XCTESTRUN}"
 
-echo "Starting WDA with device UDID ${WDA_DEVICE_UDID}" >> "${WDA_LOG_PATH}"
+echo "Starting WDA: destination=${WDA_DEVICE_UDID} reportedUDID=${WDA_REPORTED_UDID}" >> "${WDA_LOG_PATH}"
 exec env EXPANDED_CODE_SIGN_IDENTITY="${WDA_SIGNING_IDENTITY}" xcodebuild \
   -xctestrun "${WDA_RUNTIME_XCTESTRUN}" \
   -destination "id=${WDA_DEVICE_UDID}" \

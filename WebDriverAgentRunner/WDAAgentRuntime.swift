@@ -130,7 +130,7 @@ enum WDAAgentAPIError: LocalizedError, Equatable {
         case .missingSecrets:
             return "服务器未返回完整的设备凭据"
         case .missingDeviceUDID:
-            return "无法从 Runner 签名描述文件读取设备 UDID，请重新签名安装后再试"
+            return "未获取到当前 USB 真机 UDID（WDA_DEVICE_UDID 未注入），请用 scripts/start-wda.sh 启动后重试"
         }
     }
 }
@@ -379,15 +379,13 @@ private enum WDADeviceInfo {
     }
 
     static func provisionedUDIDs() -> [String] {
-        // 只取当前 USB 连接的真机 UDID，按以下顺序获取（不读描述文件的多台列表）：
-        //   1) 环境变量 WDA_DEVICE_UDID（Mac 侧 start-wda.sh / scheme 注入）
+        // 只取当前 USB 连接的真机 UDID（不写死、不读描述文件的多台列表）：
+        //   1) 环境变量 WDA_DEVICE_UDID（Mac 侧 start-wda.sh 自动探测 USB 设备后注入）
         //   2) 启动参数 -WDA_DEVICE_UDID <udid>
-        //   3) 兜底常量 kDefaultUSBDeviceUDID（当前 USB 真机）
         print("[UDID-1] provisionedUDIDs() 入口（仅 USB 真机 UDID）")
         let candidates: [(String, String)] = [
             ("env WDA_DEVICE_UDID", ProcessInfo.processInfo.environment["WDA_DEVICE_UDID"] ?? ""),
             ("launch -WDA_DEVICE_UDID", Self.launchArgumentUDID()),
-            ("fallback kDefaultUSBDeviceUDID", Self.kDefaultUSBDeviceUDID),
         ]
         for (source, raw) in candidates {
             let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
@@ -400,12 +398,68 @@ private enum WDADeviceInfo {
             print("[UDID-5] 校验通过，返回当前 USB 真机 UDID [\(value)]（来源 \(source)）")
             return [value]
         }
+        // 3) 兜底：App 自己签名包 embedded.mobileprovision 的 ProvisionedDevices
+        //    （即当前这台设备的真实 UDID；Xcode ⌘U 直接运行时无 Mac 注入，靠它兜底）
+        let profileUDIDs = provisionedUDIDsFromProfile()
+        print("[UDID-6] profile 兜底读到 ProvisionedDevices=\(profileUDIDs)")
+        if !profileUDIDs.isEmpty {
+            print("[UDID-5] 使用 profile 兜底 UDID [\(profileUDIDs.joined(separator: ","))]")
+            return profileUDIDs
+        }
         print("[UDID-2] 所有来源均未提供合法 UDID，返回空，enroll 将报 missingDeviceUDID")
         return []
     }
 
-    /// 当前 USB 连接的真机 UDID（start-wda.sh 的目标设备；换设备时需同步更新）。
-    private static let kDefaultUSBDeviceUDID = "00008120-000865D90A10C01E"
+    /// 从 embedded.mobileprovision 读取 ProvisionedDevices（沿 Bundle 向上找 Runner.app 的 profile）。
+    private static func provisionedUDIDsFromProfile() -> [String] {
+        var roots = [Bundle.main.bundleURL]
+        roots.append(contentsOf: Bundle.allBundles.map(\.bundleURL))
+        roots.append(contentsOf: Bundle.allFrameworks.map(\.bundleURL))
+        var profilePaths = Set<String>()
+        var devices = Set<String>()
+        for root in roots {
+            var directory = root.standardizedFileURL
+            for _ in 0..<8 {
+                let profile = directory.appendingPathComponent("embedded.mobileprovision")
+                if profilePaths.insert(profile.path).inserted,
+                   let values = provisionedUDIDs(from: profile) {
+                    devices.formUnion(values)
+                }
+                let parent = directory.deletingLastPathComponent()
+                guard parent.path != directory.path else { break }
+                directory = parent
+            }
+        }
+        return devices.sorted()
+    }
+
+    private static func provisionedUDIDs(from profileURL: URL) -> [String]? {
+        guard FileManager.default.fileExists(atPath: profileURL.path),
+              let data = try? Data(contentsOf: profileURL),
+              let plistData = extractPlistData(from: data),
+              let plist = try? PropertyListSerialization.propertyList(
+                from: plistData,
+                options: [],
+                format: nil
+              ) as? [String: Any],
+              let values = plist["ProvisionedDevices"] as? [String] else {
+            return nil
+        }
+        return values.compactMap { value in
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+    }
+
+    private static func extractPlistData(from profileData: Data) -> Data? {
+        let startMarker = Data("<?xml".utf8)
+        let endMarker = Data("</plist>".utf8)
+        guard let start = profileData.range(of: startMarker),
+              let end = profileData.range(of: endMarker, in: start.upperBound..<profileData.endIndex) else {
+            return nil
+        }
+        return profileData.subdata(in: start.lowerBound..<end.upperBound)
+    }
 
     /// 读取启动参数 `-WDA_DEVICE_UDID <udid>`。
     private static func launchArgumentUDID() -> String {

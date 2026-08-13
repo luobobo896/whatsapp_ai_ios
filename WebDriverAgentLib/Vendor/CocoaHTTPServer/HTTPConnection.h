@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 
-@class GCDAsyncSocket;
+@class GCDAsyncSocket;		
 @class HTTPMessage;
 @class HTTPServer;
 @class WebSocket;
