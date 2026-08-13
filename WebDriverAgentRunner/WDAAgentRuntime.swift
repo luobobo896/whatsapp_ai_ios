@@ -737,9 +737,17 @@ final class WDAAgentModel: ObservableObject {
               let token = try? WDAAgentKeychain.read(.deviceToken) else { return }
         reportStatus(.online)
         startHeartbeat()
-        guard let url = AgentWSRoute.url(serverBaseURL: config.serverBaseURL) else { return }
-        webSocket.connect(url: url, token: token)
+        // 三端串联 v6 §7.3：手机 AgentWebSocket 直连上报退役——设备/App 信息改由本地网关
+        // 经 USB+WDA 采集后统一上报，手机零直连、零配置下发。默认关闭；对照回滚时改为 true。
+        guard !Self.agentDirectReportingEnabled else {
+            guard let url = AgentWSRoute.url(serverBaseURL: config.serverBaseURL) else { return }
+            webSocket.connect(url: url, token: token)
+            return
+        }
     }
+
+    /// 手机直连上报开关（退役后默认 false）。
+    private static let agentDirectReportingEnabled = false
 
     private func startHeartbeat() {
         guard heartbeatTask == nil else { return }

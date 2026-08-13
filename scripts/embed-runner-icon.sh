@@ -97,11 +97,21 @@ if [ -d "$RUNNER_APP/_CodeSignature" ]; then
     if [ -z "$EXISTING_IDENT" ] && grep -q '^Signature=adhoc' <<< "$SIGN_INFO"; then
         EXISTING_IDENT="-"
     fi
-    if [ -n "$EXISTING_IDENT" ]; then
-        codesign --force --sign "$EXISTING_IDENT" \
+    # 旧证书可能已失效（如 129DCD81... 已吊销）：解析出的身份不在钥匙串时，
+    # 自动挑选第一个有效的 Apple Development 证书（与 start-wda.sh 一致）。
+    CODESIGN_IDENT=""
+    if [ -n "$EXISTING_IDENT" ] && security find-identity -v -p codesigning 2>/dev/null | grep -q "$EXISTING_IDENT"; then
+        CODESIGN_IDENT="$EXISTING_IDENT"
+    else
+        CODESIGN_IDENT=$(security find-identity -v -p codesigning 2>/dev/null \
+            | grep -v CSSMERR_TP_CERT_REVOKED \
+            | awk '/Apple Development/ {print $2; exit}')
+    fi
+    if [ -n "$CODESIGN_IDENT" ]; then
+        codesign --force --sign "$CODESIGN_IDENT" \
                  --preserve-metadata=identifier,entitlements "$RUNNER_APP"
     else
-        echo "warning: bundle is signed but no identity discovered; signature will be invalid"
+        echo "warning: no valid signing identity discovered; signature will be invalid"
     fi
 fi
 
