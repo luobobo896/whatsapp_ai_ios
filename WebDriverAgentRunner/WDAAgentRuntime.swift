@@ -130,7 +130,7 @@ enum WDAAgentAPIError: LocalizedError, Equatable {
         case .missingSecrets:
             return "服务器未返回完整的设备凭据"
         case .missingDeviceUDID:
-            return "未获取到当前 USB 真机 UDID（WDA_DEVICE_UDID 未注入），请用 scripts/start-wda.sh 启动后重试"
+            return "未获取到当前 USB 真机 UDID（WDA_DEVICE_UDID 未注入），请由本地网关「激活」启动后重试"
         }
     }
 }

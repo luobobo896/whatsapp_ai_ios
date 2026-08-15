@@ -1,9 +1,0 @@
-import releaseConfig from '@appium/semantic-release-config';
-
-export default releaseConfig({
-  githubAssets: [
-    'WebDriverAgentRunner-Runner.zip',
-    'WebDriverAgentRunner-Build-Sim-arm64.zip',
-    'WebDriverAgentRunner-Build-Sim-x86_64.zip',
-  ],
-});
